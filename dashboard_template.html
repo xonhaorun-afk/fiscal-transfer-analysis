@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中央—地方财政转移支付效果分析 · 交互式仪表盘</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"
+  onerror="var s=document.createElement('script');s.src='https://unpkg.com/echarts@5.5.0/dist/echarts.min.js';document.head.appendChild(s);">
+</script>
+<script>
+setTimeout(function() {
+  if (typeof echarts === 'undefined') {
+    var overlay = document.getElementById('loading');
+    if (overlay) overlay.innerHTML = '<div style="color:#c0392b;text-align:center;padding:40px;"><h2>依赖库加载失败</h2><p>请检查网络连接后刷新页面</p></div>';
+  }
+}, 8000);
+</script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'Microsoft YaHei','PingFang SC',sans-serif; background:#f0f2f5; color:#1e293b; }
+.header { background:linear-gradient(135deg,#1a3c5e,#1f4e79); color:#fff; padding:14px 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+.header h1 { font-size:22px; font-weight:700; }
+.header .subtitle { font-size:13px; color:#d5e8f0; }
+.year-control { display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.12); padding:8px 18px; border-radius:8px; }
+.year-control label { font-size:13px; color:#d5e8f0; }
+.year-control input[type=range] { width:200px; accent-color:#e67e22; }
+.year-control .year-badge { font-size:22px; font-weight:700; color:#e67e22; min-width:48px; text-align:center; }
+.year-control button { background:#e67e22; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:13px; }
+.year-control button:hover { opacity:.85; }
+.year-control button.paused { background:#27ae60; }
+.dashboard { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:14px; max-width:1600px; margin:0 auto; }
+.card { background:#fff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.06); overflow:hidden; }
+.card-title { font-size:14px; font-weight:700; padding:10px 14px; color:#1a3c5e; border-bottom:1px solid #f0f2f5; }
+.card-body.chart { height:420px; }
+.card-body.chart-tall { height:500px; }
+.card-body.chart-short { height:340px; }
+.card.col-span-2 { grid-column:1/-1; }
+.loading-overlay { position:fixed; top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:12px; }
+.loading-overlay .spinner { width:40px;height:40px;border:3px solid #e0e0e0;border-top-color:#1f4e79;border-radius:50%;animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.tooltip-row { display:flex; justify-content:space-between; gap:20px; font-size:12px; padding:2px 0; }
+.tooltip-row strong { color:#1a3c5e; }
+@media (max-width:900px) { .dashboard { grid-template-columns:1fr; } .card.col-span-2 { grid-column:1; } }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spinner"></div>
+  <div style="color:#1a3c5e;">正在加载数据与渲染图表...</div>
+</div>
+
+<script>
+var EMBEDDED_DATA = __DATA_PLACEHOLDER__;
+</script>
+
+<div class="header">
+  <div>
+    <h1>中央—地方财政转移支付效果分析</h1>
+    <div class="subtitle">基于多源部委数据 · 31省级行政区 · 2018-2024年 · 交互式仪表盘</div>
+  </div>
+  <div class="year-control">
+    <label>选择年份</label>
+    <input type="range" id="yearSlider" min="2018" max="2024" value="2024" step="1">
+    <span class="year-badge" id="yearLabel">2024</span>
+    <button id="playBtn" onclick="togglePlay()">▶ 播放</button>
+  </div>
+</div>
+
+<div class="dashboard">
+  <div class="card">
+    <div class="card-title">① 转移支付依赖度 · 省级分布</div>
+    <div class="card-body chart chart-tall" id="chartMap"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">② 财政自给率排名</div>
+    <div class="card-body chart chart-tall" id="chartBar"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">③ 转移支付与经济发展水平</div>
+    <div class="card-body chart chart-tall" id="chartScatter"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">④ 全国趋势 (2018-2024)</div>
+    <div class="card-body chart chart-tall" id="chartTrend"></div>
+  </div>
+  <div class="card col-span-2">
+    <div class="card-title">⑤ 指标间 Pearson 相关系数矩阵</div>
+    <div class="card-body chart" id="chartHeatmap"></div>
+  </div>
+</div>
+
+<script>
+var allData = EMBEDDED_DATA;
+var chinaMap = null;
+var mapLoaded = false;
+
+(function validateData() {
+  if (!allData || allData.length === 0) {
+    var overlay = document.getElementById('loading');
+    if (overlay) overlay.innerHTML = '<div style="color:#c0392b;text-align:center;padding:40px;"><h2>数据加载失败</h2><p>内嵌数据为空，请重新运行 python main.py</p></div>';
+    return;
+  }
+  console.log('数据加载成功: ' + allData.length + ' 条记录');
+})();
+
+function hideLoading() {
+  var overlay = document.getElementById('loading');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function fetchWithTimeout(url, ms) {
+  return new Promise(function(resolve, reject) {
+    var timer = setTimeout(function() { reject(new Error('请求超时')); }, ms);
+    fetch(url).then(function(resp) {
+      clearTimeout(timer);
+      if (!resp.ok) reject(new Error('HTTP ' + resp.status));
+      else resolve(resp);
+    }).catch(function(e) { clearTimeout(timer); reject(e); });
+  });
+}
+
+async function loadData() {
+  try {
+    var mapResp = await fetchWithTimeout('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', 10000);
+    chinaMap = await mapResp.json();
+    echarts.registerMap('china', chinaMap);
+    mapLoaded = true;
+    console.log('中国地图加载成功');
+  } catch(e) {
+    console.warn('中国地图加载失败: ' + e.message + '，其他图表不受影响');
+  }
+  hideLoading();
+  initAllCharts();
+  updateYear();
+}
+
+var currentYear = 2024;
+var playing = false;
+var playTimer = null;
+
+document.getElementById('yearSlider').addEventListener('input', function() {
+  currentYear = parseInt(this.value);
+  document.getElementById('yearLabel').textContent = currentYear;
+  updateYear();
+});
+
+function updateYear() { updateMap(); updateBar(); updateScatter(); }
+
+function togglePlay() {
+  var btn = document.getElementById('playBtn');
+  if (playing) {
+    playing = false; clearInterval(playTimer);
+    btn.textContent = '▶ 播放'; btn.classList.remove('paused');
+  } else {
+    playing = true;
+    btn.textContent = '⏸ 暂停'; btn.classList.add('paused');
+    playTimer = setInterval(function() {
+      currentYear = currentYear >= 2024 ? 2018 : currentYear + 1;
+      document.getElementById('yearSlider').value = currentYear;
+      document.getElementById('yearLabel').textContent = currentYear;
+      updateYear();
+    }, 1200);
+  }
+}
+
+function getYearData(year) {
+  return allData.filter(function(r) { return parseInt(r['年份']) === year; });
+}
+
+var mapChart, barChart, scatterChart, trendChart, heatmapChart;
+
+function initAllCharts() {
+  if (typeof echarts === 'undefined') { console.error('ECharts 未加载'); return; }
+  mapChart     = echarts.init(document.getElementById('chartMap'));
+  barChart     = echarts.init(document.getElementById('chartBar'));
+  scatterChart = echarts.init(document.getElementById('chartScatter'));
+  trendChart   = echarts.init(document.getElementById('chartTrend'));
+  heatmapChart = echarts.init(document.getElementById('chartHeatmap'));
+  window.addEventListener('resize', function() {
+    [mapChart,barChart,scatterChart,trendChart,heatmapChart].forEach(function(c){ c.resize(); });
+  });
+  updateTrend();
+  updateHeatmap();
+}
+
+function updateMap() {
+  if (!mapLoaded) {
+    mapChart.setOption({
+      title: { text: '地图数据加载失败\n请检查网络连接后刷新页面', left:'center', top:'center',
+        textStyle:{color:'#999',fontSize:16,lineHeight:30} }
+    }, true);
+    return;
+  }
+  var data = getYearData(currentYear);
+  var mapData = data.map(function(r) {
+    return { name: r['省份'], value: parseFloat(r['转移支付依赖度']) || 0 };
+  });
+  var maxVal = Math.max.apply(null, mapData.map(function(d){ return d.value; }));
+
+  mapChart.setOption({
+    tooltip: {
+      trigger:'item',
+      formatter: function(p) {
+        if (!p.value) return p.name + '<br/>无数据';
+        var row = data.find(function(r){ return r['省份'] === p.name; });
+        if (!row) return p.name + '<br/>依赖度: ' + p.value.toFixed(1) + '%';
+        return '<b>' + p.name + '</b><br/>' +
+          '<div class="tooltip-row"><span>转移支付依赖度</span><strong>' + p.value.toFixed(1) + '%</strong></div>' +
+          '<div class="tooltip-row"><span>财政自给率</span><strong>' + parseFloat(row['财政自给率']).toFixed(1) + '%</strong></div>' +
+          '<div class="tooltip-row"><span>人均转移支付</span><strong>' + parseInt(row['人均转移支付_元']).toLocaleString('zh-CN') + '元</strong></div>' +
+          '<div class="tooltip-row"><span>人均GDP</span><strong>' + parseInt(row['人均GDP_元']).toLocaleString('zh-CN') + '元</strong></div>';
+      }
+    },
+    visualMap: {
+      min:0, max:Math.ceil(maxVal/10)*10,
+      text:['高依赖度','低依赖度'], textStyle:{fontSize:11},
+      inRange:{color:['#fff5eb','#fee0b6','#f9a96d','#e6550d','#a63603']},
+      calculable:true, orient:'horizontal', left:'center', bottom:8,
+    },
+    series:[{
+      name:'转移支付依赖度',
+      type:'map', map:'china',
+      roam:true, zoom:1.2,
+      top:20, bottom:60,
+      label:{show:true,fontSize:9,color:'#333'},
+      emphasis:{label:{fontSize:13,fontWeight:'bold'}},
+      data:mapData,
+    }]
+  });
+}
+
+function updateBar() {
+  var data = getYearData(currentYear);
+  var sorted = data.slice().sort(function(a,b){ return parseFloat(b['财政自给率'])-parseFloat(a['财政自给率']); });
+  var categories = ['高自给率（≥60%）','中自给率（35%-60%）','低自给率（<35%）'];
+  var colors = {};
+  colors[categories[0]]='#61a0a8'; colors[categories[1]]='#f4a742'; colors[categories[2]]='#c23531';
+
+  barChart.setOption({
+    tooltip:{ trigger:'axis',axisPointer:{type:'shadow'},
+      formatter: function(p) {
+        var d = p[0]; var row = sorted.find(function(r){ return r['省份']===d.name; });
+        if (!row) return '';
+        return '<b>' + d.name + '</b><br/>财政自给率: <b>' + d.value.toFixed(1) + '%</b><br/>转移支付依赖度: <b>' + parseFloat(row['转移支付依赖度']).toFixed(1) + '%</b>';
+      }
+    },
+    grid:{ left:50,right:40,top:40,bottom:80 },
+    xAxis:{ type:'category',data:sorted.map(function(r){ return r['省份']; }),axisLabel:{fontSize:9,rotate:45} },
+    yAxis:{ type:'value',name:'财政自给率 (%)',max:100,splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    series:[{
+      type:'bar', data: sorted.map(function(r){
+        return { name: r['省份'], value: parseFloat(r['财政自给率']), itemStyle:{ color: colors[r['财政自给率分类']] || '#999' } };
+      }),
+      barWidth:'70%',
+      markLine:{ silent:true, symbol:'none',
+        data:[
+          {yAxis:35,lineStyle:{color:'#c23531',type:'dashed'},label:{formatter:'低(<35%)',fontSize:10}},
+          {yAxis:60,lineStyle:{color:'#61a0a8',type:'dashed'},label:{formatter:'高(≥60%)',fontSize:10}},
+        ]
+      }
+    }]
+  });
+}
+
+function updateScatter() {
+  var data = getYearData(currentYear);
+  var categories = ['高自给率（≥60%）','中自给率（35%-60%）','低自给率（<35%）'];
+  var colors = {};
+  colors[categories[0]]='#61a0a8'; colors[categories[1]]='#f4a742'; colors[categories[2]]='#c23531';
+
+  scatterChart.setOption({
+    tooltip:{ trigger:'item',
+      formatter: function(p) {
+        var row = data.find(function(r){ return r['省份']===p.name; });
+        if (!row) return '';
+        return '<b>' + p.name + '</b><br/>人均GDP: <b>' + p.value[0].toLocaleString('zh-CN') + '元</b><br/>人均转移支付: <b>' + p.value[1].toLocaleString('zh-CN') + '元</b><br/>财政自给率: <b>' + parseFloat(row['财政自给率']).toFixed(1) + '%</b>';
+      }
+    },
+    grid:{ left:70,right:30,top:50,bottom:40 },
+    xAxis:{ type:'value',name:'人均GDP（元）',axisLabel:{formatter:function(v){ return (v/10000).toFixed(0)+'万'; }},splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    yAxis:{ type:'value',name:'人均转移支付（元）',axisLabel:{formatter:function(v){ return (v/10000).toFixed(0)+'万'; }},splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    series: categories.map(function(cat){
+      return {
+        name: cat, type:'scatter',
+        data: data.filter(function(r){ return r['财政自给率分类']===cat; }).map(function(r){
+          return {
+            name: r['省份'],
+            value: [parseFloat(r['人均GDP_元']), parseFloat(r['人均转移支付_元'])],
+            symbolSize: Math.max(4, Math.sqrt(parseFloat(r['常住人口_万人']))/2),
+          };
+        }),
+        itemStyle:{ color:colors[cat],opacity:.75 },
+        emphasis:{ itemStyle:{opacity:1} },
+        label:{ show:true,fontSize:9,position:'top',formatter:function(p){ return p.name; },
+          filter: function(p){ return parseFloat(p.value[1])>15000||parseFloat(p.value[0])>100000; },
+        },
+      };
+    }),
+    legend:{ bottom:0,itemGap:16,textStyle:{fontSize:10} },
+  });
+}
+
+function updateTrend() {
+  var years = [2018,2019,2020,2021,2022,2023,2024];
+  var avgDep = years.map(function(y){
+    var d = getYearData(y);
+    return d.reduce(function(s,r){ return s+parseFloat(r['转移支付依赖度']); },0)/d.length;
+  });
+  var avgSelf = years.map(function(y){
+    var d = getYearData(y);
+    return d.reduce(function(s,r){ return s+parseFloat(r['财政自给率']); },0)/d.length;
+  });
+  var totalTrans = years.map(function(y){
+    var d = getYearData(y);
+    return d.reduce(function(s,r){ return s+parseFloat(r['转移支付_亿元']); },0)/10000;
+  });
+
+  trendChart.setOption({
+    tooltip:{ trigger:'axis' },
+    legend:{ bottom:0,textStyle:{fontSize:10} },
+    grid:{ left:50,right:50,top:50,bottom:40 },
+    xAxis:{ type:'category',data:years.map(String) },
+    yAxis:[
+      { type:'value',name:'百分比 (%)',splitLine:{lineStyle:{color:'#f0f0f0'}} },
+      { type:'value',name:'万亿元',splitLine:{show:false} },
+    ],
+    series:[
+      { name:'平均转移支付依赖度',type:'line',data:avgDep.map(function(v){ return +v.toFixed(1); }),smooth:true,
+        lineStyle:{color:'#c23531',width:2},itemStyle:{color:'#c23531'},symbol:'circle',symbolSize:6 },
+      { name:'平均财政自给率',type:'line',data:avgSelf.map(function(v){ return +v.toFixed(1); }),smooth:true,
+        lineStyle:{color:'#2f4554',width:2},itemStyle:{color:'#2f4554'},symbol:'diamond',symbolSize:6 },
+      { name:'转移支付总额',type:'bar',yAxisIndex:1,data:totalTrans.map(function(v){ return +v.toFixed(2); }),
+        itemStyle:{color:'#61a0a8'},barWidth:'40%' },
+    ],
+  });
+}
+
+function updateHeatmap() {
+  var latest = getYearData(2024);
+  var metrics = ['转移支付依赖度','人均转移支付_元','财政自给率','人均GDP_元','转移支付经济匹配指数'];
+  var labels = ['依赖度','人均转移','自给率','人均GDP','匹配指数'];
+  var n = metrics.length;
+  var matrix = [];
+  for (var i=0;i<n;i++) {
+    for (var j=0;j<=i;j++) {
+      var xi = latest.map(function(r){ return parseFloat(r[metrics[i]])||0; });
+      var xj = latest.map(function(r){ return parseFloat(r[metrics[j]])||0; });
+      var r = pearson(xi,xj);
+      matrix.push([j,i,+r.toFixed(3)]);
+    }
+  }
+
+  heatmapChart.setOption({
+    tooltip:{ formatter:function(p){ return '<b>' + labels[p.value[0]] + ' vs ' + labels[p.value[1]] + '</b><br/>Pearson r = ' + p.value[2].toFixed(3); } },
+    grid:{ left:80,right:140,top:60,bottom:30 },
+    xAxis:{ type:'category',data:labels,position:'top',axisLabel:{fontSize:11},splitArea:{show:true} },
+    yAxis:{ type:'category',data:labels,inverse:true,axisLabel:{fontSize:11},splitArea:{show:true} },
+    visualMap:{ min:-1,max:1,calculable:true,orient:'vertical',right:10,top:'center',
+      inRange:{color:['#2166ac','#f7f7f7','#b2182b']},
+      text:['正相关','负相关'],textStyle:{fontSize:11},
+    },
+    series:[{
+      type:'heatmap',data:matrix,
+      label:{show:true,fontSize:11,fontWeight:'bold'},
+      emphasis:{itemStyle:{shadowBlur:10,shadowColor:'rgba(0,0,0,.3)'}},
+      itemStyle:{borderColor:'#fff',borderWidth:1},
+    }],
+  });
+}
+
+function pearson(x,y) {
+  var n=x.length, mx=x.reduce(function(s,v){ return s+v; },0)/n, my=y.reduce(function(s,v){ return s+v; },0)/n;
+  var num=0,dx=0,dy=0;
+  for (var i=0;i<n;i++){ var a=x[i]-mx,b=y[i]-my; num+=a*b; dx+=a*a; dy+=b*b; }
+  return dx===0||dy===0?0:num/Math.sqrt(dx*dy);
+}
+
+loadData();
+</script>
+</body>
+</html>
