@@ -1,105 +1,75 @@
 # 中央—地方财政转移支付效果分析
 
-基于多源部委数据的综合定量分析——人工智能与计算思维 · 2026年春季学期大作业
+[![Python](https://img.shields.io/badge/Python-3.8+-blue)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![ECharts](https://img.shields.io/badge/ECharts-5.5-aa344d)](https://echarts.apache.org/)
+[![scipy](https://img.shields.io/badge/scipy-统计检验-8c52ff)](https://scipy.org/)
 
-## 项目简介
+基于国家统计局、财政部公开数据的综合定量研究——构建 2018–2024 年 31 省级行政区面板数据集，通过 **6 项核心指标 + 3 种统计检验** 评估中央转移支付的均等化效果。
 
-本项目利用国家统计局、财政部等多源部委公开数据，构建2018-2024年31个省级行政区的面板数据集，通过6项核心指标对中央转移支付的规模、结构和均等化效果进行定量分析。
+> 🚀 **[在线演示（交互式仪表盘）](https://xonhaorun-afk.github.io/fiscal-transfer-analysis/)** — 打开后即可探索数据
 
-**核心发现**：转移支付整体呈"东低西高"格局，低自给率省份人均转移支付是高自给率省份的约5倍，分配方向上符合均等化目标；但地区间经济发展差距依然严峻（上海人均GDP是甘肃的约4倍），转移支付起到托底作用但无法根本改变财力格局。
+## 核心发现
 
-## 环境要求
-
-| 项目 | 要求 | 说明 |
-|------|------|------|
-| 操作系统 | Windows / macOS / Linux | 均可运行 |
-| Python | 3.8+ | 推荐 3.10+ |
-| Node.js（可选） | 16+ | 仅用于生成报告和PPT |
+- **均等化方向正确**：低自给率省份人均转移支付是高自给率省份的 ~5 倍（`p < 0.001`）
+- **地区差距依然严峻**：北京人均 GDP 约为甘肃的 4 倍，转移支付托底但无法根本改变经济格局
+- **Pearson r = -0.97**（依赖度 vs 自给率），**Spearman ρ = -0.81**（依赖度 vs 人均 GDP）
+- **ANOVA F = 62.10**：三类省份差异极显著，分类施策具有统计依据
 
 ## 快速开始
 
 ```bash
-# 1. 安装 Python 依赖
-pip install -r requirements.txt
-
-# 2. 一键运行全流程
-python main.py
-
-# 3. （可选）生成文档
-node generate_report.js    # 生成项目报告 DOCX
-node generate_ppt.js       # 生成课堂演示 PPTX
+pip install -r requirements.txt   # 安装 Python 依赖
+python main.py                     # 一键运行全流程
+python -m pytest test_indicators.py -v  # 运行 16 个单元测试
 ```
 
-所有输出文件自动保存至 `output/` 目录。
+可选：生成 Word 报告和 PPT
+
+```bash
+npm install            # 安装 Node.js 依赖（仅一次）
+node generate_report.js
+node generate_ppt.js
+```
 
 ## 项目结构
 
 ```
-├── config.py              # 公共配置（省份列表、路径、常量）
-├── main.py                # 主入口，流程编排
-├── 01_数据采集.py          # 数据采集（真实Excel解析 + 在线fallback）
-├── 02_数据处理.py          # 数据清洗、6项指标计算、统计检验
-├── 03_可视化.py            # geopandas地图 + matplotlib图表 + seaborn热力图
-├── generate_report.js     # 生成项目报告（DOCX）
-├── generate_ppt.js        # 生成课堂演示（PPTX）
-├── test_indicators.py     # 单元测试
-├── requirements.txt       # Python 依赖
-├── 数据/                  # 原始 Excel 数据文件
-│   ├── 2018-2024各省gdp.xlsx
-│   ├── 2018-2024各省人口.xlsx
-│   ├── 2018-2024地方财政一般公共预算收入.xlsx
-│   ├── 2018-2024各省地方一般公共预算支出.xlsx
-│   └── 转移支付/          # 2018-2024 年转移支付决算表
-└── output/                # 输出目录
-    ├── raw_data.csv       # 合并原始数据
-    ├── indicators.csv     # 含6项指标完整数据
-    ├── summary_stats.csv  # 描述性统计
-    ├── correlation_matrix.csv  # Pearson相关系数矩阵
-    ├── anova_results.csv       # ANOVA统计检验结果
-    ├── 地图_*.png × 5     # 省级 choropleth 地图
-    ├── 统计图_*.png × 5    # 柱状图、散点图、趋势图、热力图
-    ├── 仪表盘_综合.png     # 双图并排仪表盘
-    ├── 项目报告.docx      # 万字项目报告
-    └── 课堂演示.pptx      # 课堂展示PPT
+├── main.py                  # 主入口，流程编排
+├── config.py                # 公共配置
+├── 01_数据采集.py            # 双模式数据采集（真实Excel + 在线备用）
+├── 02_数据处理.py            # 数据清洗、6项指标、统计检验
+├── 03_可视化.py              # geopandas 地图 + matplotlib 图表 + 仪表盘构建
+├── dashboard_template.html  # ECharts 仪表盘模板
+├── test_indicators.py       # 16 个单元测试
+├── 数据/                    # 原始 Excel 数据（12 个文件）
+└── output/                  # 输出（运行后生成）
+    ├── dashboard.html       # 交互式仪表盘
+    └── china_provinces.geojson
 ```
 
-## 核心指标定义
+## 技术栈
 
-| 指标 | 计算公式 | 经济含义 |
-|------|----------|----------|
-| 转移支付依赖度 | 转移支付 ÷ 财政支出 × 100% | 衡量地方对中央财政的依赖程度 |
-| 人均转移支付 | 转移支付总额 ÷ 常住人口 | 反映转移支付的人均水平 |
-| 财政自给率 | 地方财政收入 ÷ 财政支出 × 100% | 衡量地方财力独立性 |
-| 人均GDP | GDP ÷ 常住人口 | 衡量经济发展水平 |
-| 转移支付经济匹配指数 | 人均转移支付 ÷ 人均GDP | 反映转移支付的偏向性 |
-| 增速差 | 转移支付增速 − GDP增速 | 衡量转移支付是否逆周期调节 |
+| 层 | 工具 |
+|---|------|
+| 数据处理 | Python · pandas · numpy · scipy |
+| 可视化 | matplotlib · geopandas · seaborn · ECharts |
+| 统计检验 | Pearson r · Spearman ρ · 单因素 ANOVA · Bonferroni 校正 |
+| 文档生成 | Node.js · docx · pptxgenjs |
+| AI 协作 | Claude Code（全程辅助开发） |
 
-## 省份分类
+## 交互式仪表盘
 
-按财政自给率将31省分为三类：
-- **高自给率（≥60%）**：上海、北京、广东、浙江、江苏等
-- **中自给率（35%-60%）**：山东、福建、山西等
-- **低自给率（<35%）**：西藏、甘肃、青海、宁夏等
+`output/dashboard.html` — 双击即用，无需服务器。5 个联动图表：
 
-## 运行方式
+1. 省级分布地图（滚轮缩放，年份滑块，自动播放）
+2. 财政自给率排名（三色分类）
+3. 散点图（人均 GDP vs 人均转移支付）
+4. 全国趋势（2018–2024 折线 + 面积图）
+5. Pearson 相关系数热力图
 
-```bash
-python main.py                # 一键运行全流程
-python main.py --collect      # 仅数据采集
-python main.py --process      # 仅数据处理与指标计算
-python main.py --visualize    # 仅可视化
-python -m pytest test_indicators.py -v  # 运行测试
-```
+同时部署于 GitHub Pages：[在线演示](https://xonhaorun-afk.github.io/fiscal-transfer-analysis/)
 
-## 统计分析方法
+## License
 
-- **Pearson 相关系数矩阵**：量化5项核心指标间的线性关系
-- **Spearman 秩相关**：检验依赖度与人均GDP的单调关系
-- **单因素 ANOVA**：检验三类省份组间差异显著性
-- **事后两两比较**：Bonferroni校正的独立样本t检验
-
-## AI 协作说明
-
-本项目使用 Claude Code 全程辅助开发，采用人机协作模式完成从选题构思到最终交付的全流程。详见项目报告第六章。
-
-**协作原则**：AI负责代码生成与技术实现，人负责选题定义、数据理解、合理性审查和结论判断。
+MIT — 自由使用、修改、分发。
