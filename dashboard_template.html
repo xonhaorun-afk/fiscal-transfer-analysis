@@ -109,26 +109,19 @@ function hideLoading() {
   if (overlay) overlay.style.display = 'none';
 }
 
-function fetchWithTimeout(url, ms) {
-  return new Promise(function(resolve, reject) {
-    var timer = setTimeout(function() { reject(new Error('请求超时')); }, ms);
-    fetch(url).then(function(resp) {
-      clearTimeout(timer);
-      if (!resp.ok) reject(new Error('HTTP ' + resp.status));
-      else resolve(resp);
-    }).catch(function(e) { clearTimeout(timer); reject(e); });
-  });
-}
-
-async function loadData() {
+function loadData() {
+  // 地图数据内嵌（__MAP_PLACEHOLDER__ 由 build_dashboard.py 替换）
+  var EMBEDDED_MAP = __MAP_PLACEHOLDER__;
   try {
-    var mapResp = await fetchWithTimeout('https://geo.datav.aliyun.com/areas_v3/bound/100000_full.json', 10000);
-    chinaMap = await mapResp.json();
-    echarts.registerMap('china', chinaMap);
-    mapLoaded = true;
-    console.log('中国地图加载成功');
+    if (EMBEDDED_MAP && EMBEDDED_MAP !== null) {
+      echarts.registerMap('china', EMBEDDED_MAP);
+      mapLoaded = true;
+      console.log('中国地图加载成功（内嵌）');
+    } else {
+      console.warn('地图数据为空');
+    }
   } catch(e) {
-    console.warn('中国地图加载失败: ' + e.message + '，其他图表不受影响');
+    console.warn('地图注册失败: ' + e.message);
   }
   hideLoading();
   initAllCharts();

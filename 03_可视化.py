@@ -393,15 +393,24 @@ def build_dashboard():
     # ensure_ascii=True → 纯 ASCII 输出，任何浏览器兼容
     data_json = json.dumps(rows, ensure_ascii=True)
 
+    # 读取中国地图 GeoJSON（内嵌到仪表盘，无需外网 CDN）
+    geojson_path = os.path.join(OUTPUT_DIR, "china_provinces.geojson")
+    if os.path.exists(geojson_path):
+        with open(geojson_path, "r", encoding="utf-8") as f:
+            map_json = f.read()
+    else:
+        map_json = "null"
+
     with open(template_path, "r", encoding="utf-8") as f:
         html = f.read()
 
     html = html.replace("__DATA_PLACEHOLDER__", data_json)
+    html = html.replace("__MAP_PLACEHOLDER__", map_json)
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"  [OK] 交互式仪表盘: {output_path} ({len(rows)} 条记录)")
+    print(f"  [OK] 交互式仪表盘: {output_path} ({len(rows)} 条记录, 地图内嵌)")
 
 
 if __name__ == "__main__":
