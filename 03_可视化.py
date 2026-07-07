@@ -3,11 +3,14 @@
 无 JavaScript 依赖，输出全部为 PNG 图片
 """
 import os, json
+import logging
+from typing import Optional
 import pandas as pd
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.font_manager import FontManager
 from matplotlib.patches import Patch
 import geopandas as gpd
 import seaborn as sns
@@ -15,7 +18,30 @@ from config import OUTPUT_DIR
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-plt.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
+logger = logging.getLogger(__name__)
+
+
+def _setup_chinese_font() -> Optional[str]:
+    fm = FontManager()
+    available = {f.name for f in fm.ttflist}
+    candidates = [
+        "Noto Sans CJK SC", "Noto Sans CJK", "Noto Sans SC",
+        "WenQuanYi Zen Hei", "WenQuanYi Micro Hei",
+        "Source Han Sans SC", "Source Han Sans CN",
+        "SimHei", "Microsoft YaHei", "PingFang SC",
+        "Heiti SC", "STHeiti", "Arial Unicode MS",
+    ]
+    for name in candidates:
+        if name in available:
+            plt.rcParams["font.sans-serif"] = [name] + plt.rcParams.get("font.sans-serif", [])
+            logger.info(f"选中字体: {name}")
+            return name
+    plt.rcParams["font.sans-serif"] = ["DejaVu Sans"]
+    logger.warning("未找到中文字体，图表中的中文可能显示为方块")
+    return None
+
+
+_setup_chinese_font()
 plt.rcParams["axes.unicode_minus"] = False
 
 
@@ -337,6 +363,188 @@ def make_stat_correlation_heatmap(df):
 
 
 # ============================================================
+# 高级统计可视化：箱线图、回归系数图
+# ============================================================
+def make_stat_boxplot_timeline(df):
+    """31省转移支付依赖度的箱线图时序演变（每年一个箱线）"""
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    years = sorted(df["年份"].unique())
+    data_by_year = [df[df["年份"] == y]["转移支付依赖度"].values for y in years]
+
+    bp = ax.boxplot(
+        data_by_year, tick_labels=years, patch_artist=True,
+        medianprops={"color": "#c0392b", "linewidth": 2},
+        boxprops={"edgecolor": "#1f4e79"},
+        whiskerprops={"color": "#1f4e79"},
+        capprops={"color": "#1f4e79"},
+    )
+    for patch in bp["boxes"]:
+        patch.set_facecolor("#d5e8f0")
+        patch.set_alpha(0.7)
+
+    ax.set_xlabel("年份", fontsize=12)
+    ax.set_ylabel("转移支付依赖度（%）", fontsize=12)
+    ax.set_title("31省转移支付依赖度分布的时序演变（箱线图）", fontsize=14, fontweight="bold")
+    ax.grid(True, alpha=0.3, axis="y")
+
+    for i, y in enumerate(years):
+        median = np.median(data_by_year[i])
+        ax.text(i + 1, median + 0.5, f"{median:.1f}", ha="center", fontsize=9, color="#c0392b", fontweight="bold")
+
+    plt.tight_layout()
+    path = os.path.join(OUTPUT_DIR, "统计图_依赖度箱线图时序.png")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"  [OK] {path}")
+
+
+def make_stat_quantile_regression_chart():
+    """分位数回归系数对比图：不同分位点上 ln(人均GDP) 和 ln(人口) 的系数"""
+    qr_path = os.path.join(OUTPUT_DIR, "quantile_regression.csv")
+    if not os.path.exists(qr_path):
+        print("  [跳过] 缺少分位数回归结果，跳过图表生成")
+        return
+
+    qr_df = pd.read_csv(qr_path)
+    if qr_df.empty:
+        print("  [跳过] 分位数回归结果为空")
+        return
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    variables = [v for v in qr_df["变量"].unique() if v != "Intercept"]
+    var_labels = {
+        "ln人均GDP": "ln(人均GDP)",
+        "ln人口": "ln(常住人口)",
+    }
+
+    colors = ["#2e75b6", "#e67e22"]
+    for idx, var in enumerate(variables):
+        ax = axes[idx]
+        var_data = qr_df[qr_df["变量"] == var].sort_values("分位数")
+        quantiles = var_data["分位数"].values
+        coefs = var_data["系数"].values
+
+        ax.plot(quantiles, coefs, "o-", color=colors[idx % len(colors)],
+                linewidth=2, markersize=8, label="QR 系数")
+        ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5)
+
+        for q, c in zip(quantiles, coefs):
+            ax.annotate(f"{c:.2f}", (q, c), textcoords="offset points",
+                       xytext=(0, 10), ha="center", fontsize=9, fontweight="bold")
+
+        ax.set_xlabel("分位数", fontsize=11)
+        ax.set_ylabel("回归系数 β", fontsize=11)
+        ax.set_title(f"{var_labels.get(var, var)} 系数的分位数变化", fontsize=13, fontweight="bold")
+        ax.grid(True, alpha=0.3)
+        ax.set_xticks(quantiles)
+
+    fig.suptitle("分位数回归：不同依赖度水平上影响因素的异质性",
+                 fontsize=14, fontweight="bold", y=1.02)
+    plt.tight_layout()
+    path = os.path.join(OUTPUT_DIR, "统计图_分位数回归系数.png")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"  [OK] {path}")
+
+
+def make_stat_panel_regression_chart():
+    """面板回归系数森林图"""
+    reg_path = os.path.join(OUTPUT_DIR, "panel_regression.csv")
+    if not os.path.exists(reg_path):
+        print("  [跳过] 缺面板回归结果，跳过图表生成")
+        return
+
+    reg_df = pd.read_csv(reg_path)
+    if reg_df.empty:
+        print("  [跳过] 面板回归结果为空")
+        return
+
+    plot_df = reg_df[reg_df["变量"] != "const"].copy()
+    if plot_df.empty:
+        print("  [跳过] 无非截距项系数")
+        return
+
+    var_labels = {
+        "ln人均GDP": "ln(人均GDP)",
+        "ln人口": "ln(常住人口)",
+        "财政自给率": "财政自给率",
+    }
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+
+    y_pos = np.arange(len(plot_df))
+    coefs = plot_df["系数"].values
+    ses = plot_df["标准误"].values
+    labels = [var_labels.get(v, v) for v in plot_df["变量"].values]
+
+    sig_colors = []
+    for p in plot_df["p值"].values:
+        if p < 0.01:
+            sig_colors.append("#c0392b")
+        elif p < 0.05:
+            sig_colors.append("#e67e22")
+        else:
+            sig_colors.append("#64748b")
+
+    for i in range(len(coefs)):
+        ax.errorbar(coefs[i], y_pos[i], xerr=ses[i] * 1.96, fmt="none",
+                    ecolor=sig_colors[i], elinewidth=2, capsize=5)
+        ax.scatter(coefs[i], y_pos[i], color=sig_colors[i], s=80, zorder=5)
+
+    ax.axvline(x=0, color="gray", linestyle="--", alpha=0.5)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(labels, fontsize=11)
+    ax.set_xlabel("回归系数 β（95% 置信区间）", fontsize=12)
+    ax.set_title("面板固定效应回归系数（被解释变量：转移支付依赖度）",
+                 fontsize=13, fontweight="bold")
+    ax.grid(True, alpha=0.3, axis="x")
+
+    for i, (c, s, p) in enumerate(zip(coefs, ses, plot_df["p值"].values)):
+        stars = "***" if p < 0.001 else "**" if p < 0.01 else "*" if p < 0.05 else "ns"
+        ax.text(c + s * 2.5, i, f"{c:.2f} {stars}", va="center", fontsize=10, fontweight="bold")
+
+    plt.tight_layout()
+    path = os.path.join(OUTPUT_DIR, "统计图_面板回归系数.png")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"  [OK] {path}")
+
+
+def make_stat_category_trend(df):
+    """三类省份的平均转移支付依赖度时序对比图"""
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    categories = ["高自给率（≥60%）", "中自给率（35%-60%）", "低自给率（<35%）"]
+    colors = ["#61a0a8", "#f4a742", "#c23531"]
+    markers = ["o", "s", "^"]
+
+    for cat, color, marker in zip(categories, colors, markers):
+        cat_data = df[df["财政自给率分类"] == cat]
+        yearly = cat_data.groupby("年份")["转移支付依赖度"].mean()
+        ax.plot(yearly.index, yearly.values, f"{marker}-", color=color,
+                linewidth=2.5, markersize=7, label=cat, alpha=0.9)
+        for x, y in zip(yearly.index, yearly.values):
+            ax.annotate(f"{y:.1f}%", (x, y), textcoords="offset points",
+                       xytext=(0, 8), ha="center", fontsize=8, color=color, fontweight="bold")
+
+    ax.set_xlabel("年份", fontsize=12)
+    ax.set_ylabel("平均转移支付依赖度（%）", fontsize=12)
+    ax.set_title("三类省份转移支付依赖度的时序演变（2018-2024）",
+                 fontsize=14, fontweight="bold")
+    ax.legend(loc="upper left", fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xticks(sorted(df["年份"].unique()))
+
+    plt.tight_layout()
+    path = os.path.join(OUTPUT_DIR, "统计图_三类省份时序对比.png")
+    fig.savefig(path, dpi=150, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"  [OK] {path}")
+
+
+# ============================================================
 # 主入口
 # ============================================================
 def visualize_all():
@@ -362,6 +570,12 @@ def visualize_all():
 
     print("\n>>> 相关性热力图（seaborn）")
     make_stat_correlation_heatmap(df)
+
+    print("\n>>> 高级统计分析图表")
+    make_stat_boxplot_timeline(df)
+    make_stat_category_trend(df)
+    make_stat_panel_regression_chart()
+    make_stat_quantile_regression_chart()
 
     print("\n" + "=" * 60)
     print(f"全部图表已保存至: {OUTPUT_DIR}")
@@ -390,8 +604,23 @@ def build_dashboard():
     with open(csv_path, "r", encoding="utf-8-sig") as f:
         rows = [row for row in csv.DictReader(f)]
 
-    # ensure_ascii=True → 纯 ASCII 输出，任何浏览器兼容
     data_json = json.dumps(rows, ensure_ascii=True)
+
+    # 读取面板回归数据
+    panel_path = os.path.join(OUTPUT_DIR, "panel_regression.csv")
+    panel_data = []
+    if os.path.exists(panel_path):
+        with open(panel_path, "r", encoding="utf-8-sig") as f:
+            panel_data = [row for row in csv.DictReader(f)]
+    panel_json = json.dumps(panel_data, ensure_ascii=True)
+
+    # 读取分位数回归数据
+    qr_path = os.path.join(OUTPUT_DIR, "quantile_regression.csv")
+    qr_data = []
+    if os.path.exists(qr_path):
+        with open(qr_path, "r", encoding="utf-8-sig") as f:
+            qr_data = [row for row in csv.DictReader(f)]
+    qr_json = json.dumps(qr_data, ensure_ascii=True)
 
     # 读取中国地图 GeoJSON（内嵌到仪表盘，无需外网 CDN）
     geojson_path = os.path.join(OUTPUT_DIR, "china_provinces.geojson")
@@ -406,6 +635,8 @@ def build_dashboard():
 
     html = html.replace("__DATA_PLACEHOLDER__", data_json)
     html = html.replace("__MAP_PLACEHOLDER__", map_json)
+    html = html.replace("__PANEL_REG_PLACEHOLDER__", panel_json)
+    html = html.replace("__QR_REG_PLACEHOLDER__", qr_json)
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)

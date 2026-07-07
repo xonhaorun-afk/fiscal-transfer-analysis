@@ -5,7 +5,7 @@
 [![ECharts](https://img.shields.io/badge/ECharts-5.5-aa344d)](https://echarts.apache.org/)
 [![scipy](https://img.shields.io/badge/scipy-统计检验-8c52ff)](https://scipy.org/)
 
-基于国家统计局、财政部公开数据的综合定量研究——构建 2018–2024 年 31 省级行政区面板数据集，通过 **6 项核心指标 + 3 种统计检验** 评估中央转移支付的均等化效果。
+基于国家统计局、财政部公开数据的综合定量研究——构建 2018–2024 年 31 省级行政区面板数据集，通过 **6 项核心指标 + 5 种统计检验** 评估中央转移支付的均等化效果。
 
 > 🚀 **[在线演示（交互式仪表盘）](https://xonhaorun-afk.github.io/fiscal-transfer-analysis/)** — 打开后即可探索数据
 
@@ -37,14 +37,16 @@ node generate_ppt.js
 ```
 ├── main.py                  # 主入口，流程编排
 ├── config.py                # 公共配置
-├── 01_数据采集.py            # 双模式数据采集（真实Excel + 在线备用）
-├── 02_数据处理.py            # 数据清洗、6项指标、统计检验
+├── 01_数据采集.py            # 三级回退数据采集（真实Excel > akshare在线 > 内置估算）
+├── 02_数据处理.py            # 数据清洗、6项指标、统计检验与面板回归
 ├── 03_可视化.py              # geopandas 地图 + matplotlib 图表 + 仪表盘构建
 ├── dashboard_template.html  # ECharts 仪表盘模板
 ├── test_indicators.py       # 16 个单元测试
 ├── 数据/                    # 原始 Excel 数据（12 个文件）
 └── output/                  # 输出（运行后生成）
     ├── dashboard.html       # 交互式仪表盘
+    ├── panel_regression.csv # 面板固定效应回归结果
+    ├── quantile_regression.csv # 分位数回归结果
     └── china_provinces.geojson
 ```
 
@@ -52,21 +54,26 @@ node generate_ppt.js
 
 | 层 | 工具 |
 |---|------|
-| 数据处理 | Python · pandas · numpy · scipy |
+| 数据处理 | Python · pandas · numpy · scipy · statsmodels · linearmodels |
+| 数据采集 | akshare（国家统计局在线 API） · 本地 Excel 三级回退 |
 | 可视化 | matplotlib · geopandas · seaborn · ECharts |
-| 统计检验 | Pearson r · Spearman ρ · 单因素 ANOVA · Bonferroni 校正 |
+| 统计检验 | Pearson r · Spearman ρ · 单因素 ANOVA · Bonferroni · 面板固定效应回归 · 分位数回归 |
 | 文档生成 | Node.js · docx · pptxgenjs |
-| AI 协作 | Claude Code（全程辅助开发） |
+| 工程化 | logging · 类型注解 · pytest 单元测试 |
 
 ## 交互式仪表盘
 
-`output/dashboard.html` — 双击即用，无需服务器。5 个联动图表：
+`output/dashboard.html` — 双击即用，无需服务器。9 个联动图表：
 
 1. 省级分布地图（滚轮缩放，年份滑块，自动播放）
 2. 财政自给率排名（三色分类）
 3. 散点图（人均 GDP vs 人均转移支付）
 4. 全国趋势（2018–2024 折线 + 面积图）
 5. Pearson 相关系数热力图
+6. 依赖度分布时序箱线图
+7. 三类省份依赖度时序对比
+8. 面板固定效应回归系数森林图
+9. 分位数回归系数变化图
 
 同时部署于 GitHub Pages：[在线演示](https://xonhaorun-afk.github.io/fiscal-transfer-analysis/)
 
@@ -80,9 +87,9 @@ node generate_ppt.js
 - **对接公共服务产出**：引入教育（师生比）、医疗（千人床位数）、基建（路网密度）等产出指标，构建"投入 → 产出 → 效果"的完整评估链
 
 ### 分析方法升级
-- **固定效应面板回归**：控制省份异质性后识别转移支付对地方公共服务和经济增长的因果效应
+- **固定效应面板回归** ✅ 已实现：双向固定效应模型控制省份和时间异质性，聚类稳健标准误
 - **空间计量**：检验转移支付是否存在空间溢出——邻近省份获得的转移支付是否影响本省财政行为
-- **分位数回归**：均等化效果在高依赖度省份和中等依赖度省份之间是否存在结构性差异
+- **分位数回归** ✅ 已实现：在 10%~90% 分位点上检验均等化效果的异质性
 
 ### 机制研究
 - **财政激励效应（flypaper effect）**：转移支付是否抑制了地方自有税源的征收努力？即"越补越懒"是否存在

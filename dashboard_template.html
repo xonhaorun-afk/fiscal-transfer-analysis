@@ -88,10 +88,28 @@ var EMBEDDED_DATA = __DATA_PLACEHOLDER__;
     <div class="card-title">⑤ 指标间 Pearson 相关系数矩阵</div>
     <div class="card-body chart" id="chartHeatmap"></div>
   </div>
+  <div class="card">
+    <div class="card-title">⑥ 依赖度分布时序演变（箱线图）</div>
+    <div class="card-body chart" id="chartBoxplot"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">⑦ 三类省份依赖度时序对比</div>
+    <div class="card-body chart" id="chartCatTrend"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">⑧ 面板固定效应回归系数</div>
+    <div class="card-body chart" id="chartPanelReg"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">⑨ 分位数回归系数变化</div>
+    <div class="card-body chart" id="chartQReg"></div>
+  </div>
 </div>
 
 <script>
 var allData = EMBEDDED_DATA;
+var panelRegData = __PANEL_REG_PLACEHOLDER__;
+var qrRegData = __QR_REG_PLACEHOLDER__;
 var chinaMap = null;
 var mapLoaded = false;
 
@@ -162,6 +180,7 @@ function getYearData(year) {
 }
 
 var mapChart, barChart, scatterChart, trendChart, heatmapChart;
+var boxplotChart, catTrendChart, panelRegChart, qRegChart;
 
 function initAllCharts() {
   if (typeof echarts === 'undefined') { console.error('ECharts 未加载'); return; }
@@ -170,11 +189,20 @@ function initAllCharts() {
   scatterChart = echarts.init(document.getElementById('chartScatter'));
   trendChart   = echarts.init(document.getElementById('chartTrend'));
   heatmapChart = echarts.init(document.getElementById('chartHeatmap'));
+  boxplotChart = echarts.init(document.getElementById('chartBoxplot'));
+  catTrendChart = echarts.init(document.getElementById('chartCatTrend'));
+  panelRegChart = echarts.init(document.getElementById('chartPanelReg'));
+  qRegChart = echarts.init(document.getElementById('chartQReg'));
   window.addEventListener('resize', function() {
-    [mapChart,barChart,scatterChart,trendChart,heatmapChart].forEach(function(c){ c.resize(); });
+    [mapChart,barChart,scatterChart,trendChart,heatmapChart,
+     boxplotChart,catTrendChart,panelRegChart,qRegChart].forEach(function(c){ c.resize(); });
   });
   updateTrend();
   updateHeatmap();
+  updateBoxplot();
+  updateCatTrend();
+  updatePanelReg();
+  updateQReg();
 }
 
 function updateMap() {
@@ -367,6 +395,168 @@ function pearson(x,y) {
   var num=0,dx=0,dy=0;
   for (var i=0;i<n;i++){ var a=x[i]-mx,b=y[i]-my; num+=a*b; dx+=a*a; dy+=b*b; }
   return dx===0||dy===0?0:num/Math.sqrt(dx*dy);
+}
+
+function updateBoxplot() {
+  var years = [2018,2019,2020,2021,2022,2023,2024];
+  var boxData = years.map(function(y) {
+    var d = getYearData(y).map(function(r){ return parseFloat(r['转移支付依赖度'])||0; });
+    d.sort(function(a,b){ return a-b; });
+    var n = d.length;
+    var q1 = d[Math.floor(n*0.25)];
+    var median = d[Math.floor(n*0.5)];
+    var q3 = d[Math.floor(n*0.75)];
+    var min = d[0];
+    var max = d[n-1];
+    return [min, q1, median, q3, max];
+  });
+
+  boxplotChart.setOption({
+    tooltip:{ trigger:'item', formatter:function(p){
+      return '<b>' + p.name + '年</b><br/>最小值: ' + p.value[0].toFixed(1) + '%<br/>Q1: ' + p.value[1].toFixed(1) + '%<br/>中位数: ' + p.value[2].toFixed(1) + '%<br/>Q3: ' + p.value[3].toFixed(1) + '%<br/>最大值: ' + p.value[4].toFixed(1) + '%';
+    }},
+    grid:{ left:50,right:20,top:30,bottom:40 },
+    xAxis:{ type:'category',data:years.map(String),axisLabel:{fontSize:10} },
+    yAxis:{ type:'value',name:'依赖度 (%)',splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    series:[{
+      type:'boxplot',data:boxData,name:'转移支付依赖度',
+      itemStyle:{ color:'#d5e8f0',borderColor:'#1f4e79',borderWidth:1.5 },
+      emphasis:{ itemStyle:{ borderColor:'#e67e22',borderWidth:2 } },
+    }],
+  });
+}
+
+function updateCatTrend() {
+  var years = [2018,2019,2020,2021,2022,2023,2024];
+  var cats = ['高自给率（≥60%）','中自给率（35%-60%）','低自给率（<35%）'];
+  var colors = ['#61a0a8','#f4a742','#c23531'];
+  var symbols = ['circle','diamond','triangle'];
+
+  var series = cats.map(function(cat, idx) {
+    var data = years.map(function(y) {
+      var d = getYearData(y).filter(function(r){ return r['财政自给率分类']===cat; });
+      if (d.length===0) return null;
+      var avg = d.reduce(function(s,r){ return s+parseFloat(r['转移支付依赖度']); },0)/d.length;
+      return +avg.toFixed(1);
+    });
+    return {
+      name:cat,type:'line',data:data,smooth:true,
+      lineStyle:{color:colors[idx],width:2.5},
+      itemStyle:{color:colors[idx]},
+      symbol:symbols[idx],symbolSize:7,
+    };
+  });
+
+  catTrendChart.setOption({
+    tooltip:{ trigger:'axis' },
+    legend:{ bottom:0,textStyle:{fontSize:10},itemGap:8 },
+    grid:{ left:50,right:20,top:30,bottom:50 },
+    xAxis:{ type:'category',data:years.map(String) },
+    yAxis:{ type:'value',name:'依赖度 (%)',splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    series:series,
+  });
+}
+
+function updatePanelReg() {
+  if (!panelRegData || panelRegData.length === 0) {
+    panelRegChart.setOption({ title:{ text:'暂无面板回归数据',left:'center',top:'center',textStyle:{color:'#999',fontSize:14} } }, true);
+    return;
+  }
+  var plotData = panelRegData.filter(function(r){ return r['变量'] !== 'const'; });
+  var varLabels = { 'ln人均GDP':'ln(人均GDP)','ln人口':'ln(常住人口)','财政自给率':'财政自给率' };
+
+  var categories = plotData.map(function(r){ return varLabels[r['变量']] || r['变量']; });
+  var coefs = plotData.map(function(r){ return parseFloat(r['系数']); });
+  var ses = plotData.map(function(r){ return parseFloat(r['标准误']); });
+  var pvals = plotData.map(function(r){ return parseFloat(r['p值']); });
+
+  var errData = coefs.map(function(c,i){
+    return [c - ses[i]*1.96, c + ses[i]*1.96];
+  });
+  var colors = pvals.map(function(p){
+    return p<0.01 ? '#c0392b' : p<0.05 ? '#e67e22' : '#64748b';
+  });
+
+  panelRegChart.setOption({
+    tooltip:{ trigger:'axis',axisPointer:{type:'shadow'}, formatter:function(params){
+      var idx = params[0].dataIndex;
+      return '<b>' + categories[idx] + '</b><br/>系数: ' + coefs[idx].toFixed(3) +
+             '<br/>标准误: ' + ses[idx].toFixed(3) + '<br/>p值: ' + pvals[idx].toFixed(4) +
+             '<br/>95% CI: [' + errData[idx][0].toFixed(3) + ', ' + errData[idx][1].toFixed(3) + ']';
+    }},
+    grid:{ left:100,right:30,top:30,bottom:30 },
+    yAxis:{ type:'category',data:categories,inverse:true,axisLabel:{fontSize:11} },
+    xAxis:{ type:'value',name:'β 系数 (95% CI)',splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    series:[
+      {
+        type:'custom',renderItem:function(params, api){
+          var y = api.coord([0, api.value(0)])[1];
+          var xStart = api.coord([api.value(1), 0])[0];
+          var xEnd = api.coord([api.value(2), 0])[0];
+          return { type:'rect',
+            shape:{ x:Math.min(xStart,xEnd), y:y-2, width:Math.abs(xEnd-xStart), height:4 },
+            style:{ fill:colors[params.dataIndex] }};
+        },
+        encode:{ y:0, x:[1,2] },
+        data:categories.map(function(c,i){ return [i, errData[i][0], errData[i][1]]; }),
+      },
+      {
+        type:'scatter',data:coefs.map(function(c,i){ return [c, i]; }),
+        symbolSize:14,itemStyle:{ color: function(p){ return colors[p.dataIndex]; } },
+        encode:{ x:0, y:1 },
+        label:{ show:true, formatter:function(p){
+          var stars = pvals[p.dataIndex]<0.001?'***':pvals[p.dataIndex]<0.01?'**':pvals[p.dataIndex]<0.05?'*':'ns';
+          return coefs[p.dataIndex].toFixed(2) + ' ' + stars;
+        }, position:'right',fontSize:11,fontWeight:'bold' },
+      }
+    ],
+    graphic:[{
+      type:'line',shape:{ x1:0,y1:0,x2:0,y2:1 },
+      left:'center',top:30,bottom:30,
+      style:{ stroke:'#999',lineWidth:1,lineDash:[4,4] },
+    }],
+  });
+}
+
+function updateQReg() {
+  if (!qrRegData || qrRegData.length === 0) {
+    qRegChart.setOption({ title:{ text:'暂无分位数回归数据',left:'center',top:'center',textStyle:{color:'#999',fontSize:14} } }, true);
+    return;
+  }
+  var variables = qrRegData.filter(function(r){ return r['变量']!=='Intercept'; })
+    .map(function(r){ return r['变量']; })
+    .filter(function(v,i,a){ return a.indexOf(v)===i; });
+  var varLabels = { 'ln人均GDP':'ln(人均GDP)','ln人口':'ln(常住人口)' };
+  var colors = ['#2e75b6','#e67e22','#27ae60'];
+
+  var series = variables.map(function(v, idx) {
+    var vdata = qrRegData.filter(function(r){ return r['变量']===v; })
+      .sort(function(a,b){ return parseFloat(a['分位数'])-parseFloat(b['分位数']); });
+    return {
+      name:varLabels[v]||v,type:'line',smooth:true,
+      data:vdata.map(function(r){ return [parseFloat(r['分位数']), parseFloat(r['系数'])]; }),
+      lineStyle:{color:colors[idx%colors.length],width:2.5},
+      itemStyle:{color:colors[idx%colors.length]},
+      symbol:'circle',symbolSize:7,
+      label:{ show:true, formatter:function(p){ return p.value[1].toFixed(2); },
+        position:'top',fontSize:9,fontWeight:'bold' },
+    };
+  });
+
+  qRegChart.setOption({
+    tooltip:{ trigger:'axis', formatter:function(params){
+      return '<b>分位数 ' + params[0].value[0] + '</b><br/>' +
+        params.map(function(p){ return p.seriesName + ': ' + p.value[1].toFixed(3); }).join('<br/>');
+    }},
+    legend:{ bottom:0,textStyle:{fontSize:10} },
+    grid:{ left:55,right:20,top:30,bottom:50 },
+    xAxis:{ type:'value',name:'分位数',min:0.05,max:0.95,
+      axisLabel:{formatter:function(v){ return v.toFixed(2); }},
+      splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    yAxis:{ type:'value',name:'β 系数',splitLine:{lineStyle:{color:'#f0f0f0'}} },
+    series:series,
+    markLine:{ silent:true, data:[{ yAxis:0, lineStyle:{color:'#999',type:'dashed'} }] },
+  });
 }
 
 loadData();

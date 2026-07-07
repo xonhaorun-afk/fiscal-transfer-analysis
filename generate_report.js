@@ -19,16 +19,47 @@ function embedImage(filename, width, height) {
   });
 }
 
+function parseCSVLine(line) {
+  const result = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ",") {
+        result.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
+}
+
 function readCSV(filename) {
   const p = path.join(BASE_DIR, "output", filename);
   if (!fs.existsSync(p)) return [];
   const text = fs.readFileSync(p, "utf-8").replace(/^﻿/, "");
-  const lines = text.trim().split(/\r?\n/);
-  const headers = lines[0].split(",");
+  const lines = text.trim().split(/\r?\n/).filter(l => l.length > 0);
+  if (lines.length === 0) return [];
+  const headers = parseCSVLine(lines[0]);
   return lines.slice(1).map(line => {
+    const cols = parseCSVLine(line);
     const obj = {};
-    const cols = line.split(",");
-    headers.forEach((h, i) => { obj[h.trim()] = (cols[i] || "").trim(); });
+    headers.forEach((h, i) => { obj[h] = (cols[i] !== undefined ? cols[i] : ""); });
     return obj;
   });
 }
