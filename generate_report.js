@@ -97,6 +97,12 @@ function boldBody(boldText, normalText) {
 // ===== 加载数据 =====
 const indicators = readCSV("indicators.csv");
 const summaryStats = readCSV("summary_stats.csv");
+const panelReg = readCSV("panel_regression.csv");
+const quantileReg = readCSV("quantile_regression.csv");
+const vifDiag = readCSV("vif_diagnostic.csv");
+const regDiag = readCSV("regression_diagnostic.csv");
+const spatialAuto = readCSV("spatial_autocorrelation.csv");
+
 const latestYear = Math.max(...indicators.map(r => parseInt(r["年份"]) || 0));
 const recentData = indicators.filter(r => parseInt(r["年份"]) === latestYear);
 
