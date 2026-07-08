@@ -9,6 +9,10 @@ const {
 const BASE_DIR = __dirname;
 const OUTPUT = path.join(BASE_DIR, "output", "项目报告.docx");
 
+const FONT_CN = { ascii: "Times New Roman", eastAsia: "SimSun", hAnsi: "Times New Roman" };
+const FONT_CN_BOLD = { ascii: "Times New Roman", eastAsia: "SimHei", hAnsi: "Times New Roman" };
+const FONT_CN_TITLE = { ascii: "Arial", eastAsia: "SimHei", hAnsi: "Arial" };
+
 function embedImage(filename, width, height) {
   const p = path.join(BASE_DIR, "output", filename);
   if (!fs.existsSync(p)) return null;
@@ -60,26 +64,26 @@ function headerCell(text, width) {
   return new TableCell({
     borders, width: { size: width, type: WidthType.DXA }, margins: cellMargins,
     shading: { fill: "D5E8F0", type: ShadingType.CLEAR },
-    children: [new Paragraph({ children: [new TextRun({ text, bold: true, font: "Microsoft YaHei", size: 21 })] })]
+    children: [new Paragraph({ children: [new TextRun({ text, bold: true, font: FONT_CN_BOLD, size: 21 })] })]
   });
 }
 function cell(text, width) {
   return new TableCell({
     borders, width: { size: width, type: WidthType.DXA }, margins: cellMargins,
-    children: [new Paragraph({ children: [new TextRun({ text, font: "Microsoft YaHei", size: 20 })] })]
+    children: [new Paragraph({ children: [new TextRun({ text, font: FONT_CN, size: 20 })] })]
   });
 }
 function bullet(text) {
   return new Paragraph({ numbering: { reference: "bullets", level: 0 }, spacing: { after: 60 },
-    children: [new TextRun({ text, font: "Microsoft YaHei", size: 22 })] });
+    children: [new TextRun({ text, font: FONT_CN, size: 22 })] });
 }
 function body(text) {
-  return new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, font: "Microsoft YaHei", size: 22 })] });
+  return new Paragraph({ spacing: { after: 80 }, children: [new TextRun({ text, font: FONT_CN, size: 22 })] });
 }
 function boldBody(boldText, normalText) {
   return new Paragraph({ spacing: { after: 80 }, children: [
-    new TextRun({ text: boldText, bold: true, font: "Microsoft YaHei", size: 22 }),
-    new TextRun({ text: normalText, font: "Microsoft YaHei", size: 22 }),
+    new TextRun({ text: boldText, bold: true, font: FONT_CN_BOLD, size: 22 }),
+    new TextRun({ text: normalText, font: FONT_CN, size: 22 }),
   ]});
 }
 
@@ -139,16 +143,16 @@ const numbering = {
 const doc = new Document({
   numbering,
   styles: {
-    default: { document: { run: { font: "Microsoft YaHei", size: 22 } } },
+    default: { document: { run: { font: FONT_CN, size: 22 } } },
     paragraphStyles: [
       { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
-        run: { size: 32, bold: true, font: "Microsoft YaHei", color: "1F4E79" },
+        run: { size: 32, bold: true, font: FONT_CN_BOLD, color: "1F4E79" },
         paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 0 } },
       { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
-        run: { size: 26, bold: true, font: "Microsoft YaHei", color: "2E75B6" },
+        run: { size: 26, bold: true, font: FONT_CN_BOLD, color: "2E75B6" },
         paragraph: { spacing: { before: 180, after: 100 }, outlineLevel: 1 } },
       { id: "Heading3", name: "Heading 3", basedOn: "Normal", next: "Normal", quickFormat: true,
-        run: { size: 23, bold: true, font: "Microsoft YaHei", color: "34495E" },
+        run: { size: 23, bold: true, font: FONT_CN_BOLD, color: "34495E" },
         paragraph: { spacing: { before: 140, after: 80 }, outlineLevel: 2 } },
     ]
   },
@@ -160,7 +164,7 @@ const doc = new Document({
       default: new Header({
         children: [new Paragraph({
           alignment: AlignmentType.RIGHT,
-          children: [new TextRun({ text: "人工智能与计算思维 · 2026春季学期大作业", font: "Microsoft YaHei", size: 16, color: "999999" })]
+          children: [new TextRun({ text: "人工智能与计算思维 · 2026春季学期大作业", font: FONT_CN, size: 16, color: "999999" })]
         })]
       })
     },
@@ -168,22 +172,22 @@ const doc = new Document({
       default: new Footer({
         children: [new Paragraph({
           alignment: AlignmentType.CENTER,
-          children: [new TextRun({ text: "第 ", font: "Microsoft YaHei", size: 16 }), new TextRun({ children: [PageNumber.CURRENT], font: "Microsoft YaHei", size: 16 }), new TextRun({ text: " 页", font: "Microsoft YaHei", size: 16 })]
+          children: [new TextRun({ text: "第 ", font: FONT_CN, size: 16 }), new TextRun({ children: [PageNumber.CURRENT], font: FONT_CN, size: 16 }), new TextRun({ text: " 页", font: FONT_CN, size: 16 })]
         })]
       })
     },
     children: [
       new Paragraph({ spacing: { before: 800 }, alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: "中央—地方财政转移支付效果分析", font: "Microsoft YaHei", size: 40, bold: true, color: "1F4E79" })]
+        children: [new TextRun({ text: "中央—地方财政转移支付效果分析", font: FONT_CN, size: 40, bold: true, color: "1F4E79" })]
       }),
       new Paragraph({ spacing: { before: 200 }, alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: "——基于多源部委数据的综合定量研究", font: "Microsoft YaHei", size: 26, color: "2E75B6" })]
+        children: [new TextRun({ text: "——基于多源部委数据的综合定量研究", font: FONT_CN, size: 26, color: "2E75B6" })]
       }),
       new Paragraph({ spacing: { before: 600 }, alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: "人工智能与计算思维 · 2026年春季学期大作业", font: "Microsoft YaHei", size: 22, color: "666666" })]
+        children: [new TextRun({ text: "人工智能与计算思维 · 2026年春季学期大作业", font: FONT_CN, size: 22, color: "666666" })]
       }),
       new Paragraph({ spacing: { before: 300 }, alignment: AlignmentType.CENTER,
-        children: [new TextRun({ text: "完成方式：单人  |  工具：Python + ECharts  |  协作：Claude Code", font: "Microsoft YaHei", size: 20, color: "666666" })]
+        children: [new TextRun({ text: "完成方式：单人  |  工具：Python + ECharts  |  协作：Claude Code", font: FONT_CN, size: 20, color: "666666" })]
       }),
 
       new Paragraph({ children: [new PageBreak()] }),

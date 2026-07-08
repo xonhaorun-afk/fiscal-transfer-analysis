@@ -14,6 +14,8 @@ const C = {
   offWhite: "F5F7FA", gray: "64748B", dark: "1E293B",
   green: "27AE60", orange: "E67E22", red: "C0392B",
 };
+const FONT_CN = "SimSun";
+const FONT_CN_BOLD = "SimHei";
 
 function imgBase64(filename) {
   const p = path.join(OUT_DIR, filename);
@@ -36,26 +38,26 @@ const imgPanelReg = imgBase64("统计图_面板回归系数.png");
 const imgQReg = imgBase64("统计图_分位数回归系数.png");
 
 function sectionTitle(s, text) {
-  s.addText(text, { x: 0.5, y: 0.2, w: 9, h: 0.55, fontSize: 24, fontFace: "Microsoft YaHei", color: C.navy, bold: true });
+  s.addText(text, { x: 0.5, y: 0.2, w: 9, h: 0.55, fontSize: 24, fontFace: FONT_CN_BOLD, color: C.navy, bold: true });
   s.addShape(pres.shapes.RECTANGLE, { x: 0.5, y: 0.75, w: 1.0, h: 0.03, fill: { color: C.blue } });
 }
 
 function statBox(s, x, y, w, number, label, color) {
   s.addShape(pres.shapes.RECTANGLE, { x, y, w, h: 1.1, fill: { color: C.offWhite }, rx: 8, ry: 8 });
-  s.addText(number, { x, y: y + 0.05, w, h: 0.55, fontSize: 28, fontFace: "Microsoft YaHei", color, bold: true, align: "center", valign: "middle" });
-  s.addText(label, { x, y: y + 0.6, w, h: 0.4, fontSize: 11, fontFace: "Microsoft YaHei", color: C.gray, align: "center", valign: "top" });
+  s.addText(number, { x, y: y + 0.05, w, h: 0.55, fontSize: 28, fontFace: FONT_CN_BOLD, color, bold: true, align: "center", valign: "middle" });
+  s.addText(label, { x, y: y + 0.6, w, h: 0.4, fontSize: 11, fontFace: FONT_CN, color: C.gray, align: "center", valign: "top" });
 }
 
 function aiBar(s, x, y, w, text) {
   s.addShape(pres.shapes.RECTANGLE, { x, y, w, h: 0.26, fill: { color: C.lightBlue }, rx: 4, ry: 4 });
-  s.addText("AI协作：" + text, { x: x + 0.06, y, w: w - 0.12, h: 0.26, fontSize: 7.5, fontFace: "Microsoft YaHei", color: C.darkBlue, valign: "middle" });
+  s.addText("AI协作：" + text, { x: x + 0.06, y, w: w - 0.12, h: 0.26, fontSize: 7.5, fontFace: FONT_CN, color: C.darkBlue, valign: "middle" });
 }
 
 function transitionSlide(title) {
   const s = pres.addSlide();
   s.background = { color: C.navy };
   s.addShape(pres.shapes.RECTANGLE, { x: 0.5, y: 2.5, w: 0.06, h: 1.0, fill: { color: C.accent } });
-  s.addText(title, { x: 0.8, y: 2.5, w: 8, h: 1.0, fontSize: 32, fontFace: "Microsoft YaHei", color: C.white, bold: true });
+  s.addText(title, { x: 0.8, y: 2.5, w: 8, h: 1.0, fontSize: 32, fontFace: FONT_CN_BOLD, color: C.white, bold: true });
   return s;
 }
 
@@ -66,15 +68,15 @@ function transitionSlide(title) {
   const s = pres.addSlide();
   s.background = { color: C.navy };
   s.addText("中央—地方财政转移支付\n效果分析", {
-    x: 0.8, y: 1.0, w: 8.4, h: 2.0, fontSize: 40, fontFace: "Microsoft YaHei",
+    x: 0.8, y: 1.0, w: 8.4, h: 2.0, fontSize: 40, fontFace: FONT_CN,
     color: C.white, bold: true, lineSpacingMultiple: 1.3,
   });
   s.addShape(pres.shapes.RECTANGLE, { x: 0.8, y: 3.1, w: 1.5, h: 0.05, fill: { color: C.accent } });
   s.addText("基于多源部委数据的综合定量研究", {
-    x: 0.8, y: 3.3, w: 8, h: 0.6, fontSize: 18, fontFace: "Microsoft YaHei", color: C.lightBlue,
+    x: 0.8, y: 3.3, w: 8, h: 0.6, fontSize: 18, fontFace: FONT_CN, color: C.lightBlue,
   });
   s.addText("人工智能与计算思维 · 2026年春季学期大作业\n单人完成  |  Python + ECharts  |  Claude Code 协作开发", {
-    x: 0.8, y: 4.2, w: 8, h: 0.8, fontSize: 13, fontFace: "Microsoft YaHei", color: "#94A3B8", lineSpacingMultiple: 1.5,
+    x: 0.8, y: 4.2, w: 8, h: 0.8, fontSize: 13, fontFace: FONT_CN, color: "#94A3B8", lineSpacingMultiple: 1.5,
   });
 }
 
@@ -90,12 +92,12 @@ function transitionSlide(title) {
   statBox(s, 3.5, 1.1, 2.8, "约47%", "占地方财政支出比重", C.accent);
   statBox(s, 6.5, 1.1, 2.8, "31省 × 7年", "面板数据规模", C.blue);
 
-  s.addText("核心研究问题", { x: 0.5, y: 2.6, w: 8, h: 0.4, fontSize: 16, fontFace: "Microsoft YaHei", color: C.dark, bold: true });
+  s.addText("核心研究问题", { x: 0.5, y: 2.6, w: 8, h: 0.4, fontSize: 16, fontFace: FONT_CN_BOLD, color: C.dark, bold: true });
   s.addText([
     { text: "1. 中央转移支付是否有效缩小了地区间财力差距？", options: { bullet: true, breakLine: true, fontSize: 14 } },
     { text: "2. 哪些省份对中央转移支付的依赖程度最高？背后的经济与财政因素是什么？", options: { bullet: true, breakLine: true, fontSize: 14 } },
     { text: "3. 转移支付的分配是否与经济发展水平、人口结构等指标匹配？", options: { bullet: true, fontSize: 14 } },
-  ], { x: 0.5, y: 3.0, w: 8.8, h: 1.4, fontFace: "Microsoft YaHei", color: C.dark });
+  ], { x: 0.5, y: 3.0, w: 8.8, h: 1.4, fontFace: FONT_CN, color: C.dark });
 
   aiBar(s, 0.5, 4.8, 9, "从8个候选选题中评估匹配度，结合政府管理专业背景推荐转移支付方向");
 }
@@ -108,7 +110,7 @@ function transitionSlide(title) {
   s.background = { color: C.white };
   sectionTitle(s, "数据来源与分析框架");
 
-  s.addText("数据来源", { x: 0.5, y: 1.05, w: 4, h: 0.3, fontSize: 14, fontFace: "Microsoft YaHei", color: C.navy, bold: true });
+  s.addText("数据来源", { x: 0.5, y: 1.05, w: 4, h: 0.3, fontSize: 14, fontFace: FONT_CN_BOLD, color: C.navy, bold: true });
   const srcs = [
     { dept: "国家统计局", data: "GDP、常住人口" },
     { dept: "财政部", data: "财政收入、财政支出" },
@@ -117,11 +119,11 @@ function transitionSlide(title) {
   srcs.forEach((src, i) => {
     const sy = 1.45 + i * 0.65;
     s.addShape(pres.shapes.RECTANGLE, { x: 0.5, y: sy, w: 4.3, h: 0.55, fill: { color: C.offWhite }, rx: 6, ry: 6 });
-    s.addText(src.dept, { x: 0.6, y: sy + 0.02, w: 1.6, h: 0.5, fontSize: 12, fontFace: "Microsoft YaHei", color: C.darkBlue, bold: true, valign: "middle" });
-    s.addText(src.data, { x: 2.2, y: sy + 0.02, w: 2.5, h: 0.5, fontSize: 10, fontFace: "Microsoft YaHei", color: C.gray, valign: "middle" });
+    s.addText(src.dept, { x: 0.6, y: sy + 0.02, w: 1.6, h: 0.5, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.darkBlue, bold: true, valign: "middle" });
+    s.addText(src.data, { x: 2.2, y: sy + 0.02, w: 2.5, h: 0.5, fontSize: 10, fontFace: FONT_CN, color: C.gray, valign: "middle" });
   });
 
-  s.addText("分析框架", { x: 5.2, y: 1.05, w: 4.5, h: 0.3, fontSize: 14, fontFace: "Microsoft YaHei", color: C.navy, bold: true });
+  s.addText("分析框架", { x: 5.2, y: 1.05, w: 4.5, h: 0.3, fontSize: 14, fontFace: FONT_CN_BOLD, color: C.navy, bold: true });
   const framework = [
     { step: "①", label: "描述性分析", desc: "地区分布 + 时序演变" },
     { step: "②", label: "分组对比", desc: "三类省份 + 统计检验" },
@@ -131,9 +133,9 @@ function transitionSlide(title) {
   framework.forEach((fw, i) => {
     const my = 1.45 + i * 0.55;
     s.addShape(pres.shapes.OVAL, { x: 5.3, y: my + 0.05, w: 0.35, h: 0.35, fill: { color: C.blue } });
-    s.addText(fw.step, { x: 5.3, y: my + 0.05, w: 0.35, h: 0.35, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle" });
-    s.addText(fw.label, { x: 5.75, y: my, w: 2.0, h: 0.35, fontSize: 11, fontFace: "Microsoft YaHei", color: C.dark, bold: true, valign: "middle" });
-    s.addText(fw.desc, { x: 7.8, y: my, w: 2.0, h: 0.35, fontSize: 10, fontFace: "Microsoft YaHei", color: C.gray, valign: "middle" });
+    s.addText(fw.step, { x: 5.3, y: my + 0.05, w: 0.35, h: 0.35, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle" });
+    s.addText(fw.label, { x: 5.75, y: my, w: 2.0, h: 0.35, fontSize: 11, fontFace: FONT_CN_BOLD, color: C.dark, bold: true, valign: "middle" });
+    s.addText(fw.desc, { x: 7.8, y: my, w: 2.0, h: 0.35, fontSize: 10, fontFace: FONT_CN, color: C.gray, valign: "middle" });
   });
 
   aiBar(s, 0.5, 4.9, 9, "输出指标体系设计 + 四阶段流水线架构（采集→处理→可视化→报告）");
@@ -157,11 +159,11 @@ transitionSlide("第一部分：描述性分析");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.5, y: 4.45, w: 4.5, h: 0.45, fill: { color: C.red }, rx: 6, ry: 6 });
   s.addText("西藏依赖度 88.0%  vs  上海 9.6%  ·  极差 78.4 个百分点", {
-    x: 0.5, y: 4.45, w: 4.5, h: 0.45, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle",
+    x: 0.5, y: 4.45, w: 4.5, h: 0.45, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle",
   });
   s.addShape(pres.shapes.RECTANGLE, { x: 5.2, y: 4.45, w: 4.5, h: 0.45, fill: { color: C.darkBlue }, rx: 6, ry: 6 });
   s.addText("整体呈东低西高格局  ·  高依赖省份集中在西部", {
-    x: 5.2, y: 4.45, w: 4.5, h: 0.45, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle",
+    x: 5.2, y: 4.45, w: 4.5, h: 0.45, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle",
   });
 }
 
@@ -178,11 +180,11 @@ transitionSlide("第一部分：描述性分析");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 4.6, w: 4.5, h: 0.5, fill: { color: C.darkBlue }, rx: 6, ry: 6 });
   s.addText("全国平均依赖度从37%升至47%，转移支付总额从6万亿增至10万亿", {
-    x: 0.3, y: 4.6, w: 4.5, h: 0.5, fontSize: 11, fontFace: "Microsoft YaHei", color: C.white, align: "center", valign: "middle",
+    x: 0.3, y: 4.6, w: 4.5, h: 0.5, fontSize: 11, fontFace: FONT_CN, color: C.white, align: "center", valign: "middle",
   });
   s.addShape(pres.shapes.RECTANGLE, { x: 5.0, y: 4.6, w: 4.7, h: 0.5, fill: { color: C.accent }, rx: 6, ry: 6 });
   s.addText("依赖度分布整体右移，中位数上升约10个百分点", {
-    x: 5.0, y: 4.6, w: 4.7, h: 0.5, fontSize: 11, fontFace: "Microsoft YaHei", color: C.white, align: "center", valign: "middle",
+    x: 5.0, y: 4.6, w: 4.7, h: 0.5, fontSize: 11, fontFace: FONT_CN, color: C.white, align: "center", valign: "middle",
   });
 }
 
@@ -208,16 +210,16 @@ transitionSlide("第二部分：分组对比与统计检验");
     const cx = 0.4 + i * 3.15;
     s.addShape(pres.shapes.RECTANGLE, { x: cx, y: 1.05, w: 2.95, h: 3.1, fill: { color: C.offWhite }, rx: 8, ry: 8 });
     s.addShape(pres.shapes.RECTANGLE, { x: cx, y: 1.05, w: 2.95, h: 0.06, fill: { color: cat.color } });
-    s.addText(cat.label, { x: cx + 0.12, y: 1.15, w: 2.7, h: 0.32, fontSize: 13, fontFace: "Microsoft YaHei", color: cat.color, bold: true });
-    s.addText(cat.count, { x: cx + 0.12, y: 1.45, w: 2.7, h: 0.28, fontSize: 22, fontFace: "Microsoft YaHei", color: C.dark, bold: true });
+    s.addText(cat.label, { x: cx + 0.12, y: 1.15, w: 2.7, h: 0.32, fontSize: 13, fontFace: FONT_CN_BOLD, color: cat.color, bold: true });
+    s.addText(cat.count, { x: cx + 0.12, y: 1.45, w: 2.7, h: 0.28, fontSize: 22, fontFace: FONT_CN_BOLD, color: C.dark, bold: true });
     s.addText("依赖度: " + cat.dep + "\n人均转移支付: " + cat.per + "\n人均GDP: " + cat.gdp, {
-      x: cx + 0.12, y: 1.8, w: 2.7, h: 1.4, fontSize: 11, fontFace: "Microsoft YaHei", color: C.dark, lineSpacingMultiple: 1.6,
+      x: cx + 0.12, y: 1.8, w: 2.7, h: 1.4, fontSize: 11, fontFace: FONT_CN, color: C.dark, lineSpacingMultiple: 1.6,
     });
-    s.addText(cat.examples, { x: cx + 0.12, y: 3.4, w: 2.7, h: 0.6, fontSize: 9, fontFace: "Microsoft YaHei", color: C.gray });
+    s.addText(cat.examples, { x: cx + 0.12, y: 3.4, w: 2.7, h: 0.6, fontSize: 9, fontFace: FONT_CN, color: C.gray });
   });
 
   s.addText("低自给率省份人均转移支付是高自给率的5.4倍 → 转移支付向财力薄弱地区倾斜", {
-    x: 0.5, y: 4.4, w: 9, h: 0.7, fontSize: 12, fontFace: "Microsoft YaHei", color: C.gray, italic: true,
+    x: 0.5, y: 4.4, w: 9, h: 0.7, fontSize: 12, fontFace: FONT_CN, color: C.gray, italic: true,
   });
 }
 
@@ -233,7 +235,7 @@ transitionSlide("第二部分：分组对比与统计检验");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 5.3, w: 9.4, h: 0.45, fill: { color: C.darkBlue }, rx: 6, ry: 6 });
   s.addText("依赖度与人均GDP强负相关：Pearson r = -0.78，Spearman ρ = -0.81（p < 0.001）", {
-    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle",
+    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle",
   });
 }
 
@@ -258,8 +260,8 @@ transitionSlide("第二部分：分组对比与统计检验");
     const sy = 1.1 + i * 0.72;
     s.addShape(pres.shapes.RECTANGLE, { x: 5.0, y: sy, w: 4.7, h: 0.62, fill: { color: C.offWhite }, rx: 6, ry: 6 });
     s.addShape(pres.shapes.RECTANGLE, { x: 5.0, y: sy, w: 0.05, h: 0.62, fill: { color: C.blue } });
-    s.addText(st.value, { x: 5.15, y: sy + 0.02, w: 4.4, h: 0.35, fontSize: 11, fontFace: "Microsoft YaHei", color: C.dark, bold: true, valign: "bottom" });
-    s.addText(st.detail, { x: 5.15, y: sy + 0.32, w: 4.4, h: 0.28, fontSize: 9, fontFace: "Microsoft YaHei", color: C.gray, valign: "top" });
+    s.addText(st.value, { x: 5.15, y: sy + 0.02, w: 4.4, h: 0.35, fontSize: 11, fontFace: FONT_CN_BOLD, color: C.dark, bold: true, valign: "bottom" });
+    s.addText(st.detail, { x: 5.15, y: sy + 0.32, w: 4.4, h: 0.28, fontSize: 9, fontFace: FONT_CN, color: C.gray, valign: "top" });
   });
 }
 
@@ -280,7 +282,7 @@ transitionSlide("第三部分：回归分析 — 因果识别");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 5.3, w: 9.4, h: 0.45, fill: { color: C.darkBlue }, rx: 6, ry: 6 });
   s.addText("ln(人均GDP)系数显著负向 · ln(人口)系数显著正向 · 控制省份FE和时间FE", {
-    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle",
+    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle",
   });
 }
 
@@ -296,7 +298,7 @@ transitionSlide("第三部分：回归分析 — 因果识别");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 5.3, w: 9.4, h: 0.45, fill: { color: C.accent }, rx: 6, ry: 6 });
   s.addText("低依赖分位点：GDP效应更强 · 高依赖分位点：人口效应更显著", {
-    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle",
+    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle",
   });
 }
 
@@ -317,7 +319,7 @@ transitionSlide("第四部分：空间计量分析");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 5.3, w: 9.4, h: 0.45, fill: { color: C.green }, rx: 6, ry: 6 });
   s.addText("Moran's I = 0.42（p < 0.001）· 高依赖省份呈现空间集群特征", {
-    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle",
+    x: 0.5, y: 5.3, w: 9, h: 0.45, fontSize: 12, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle",
   });
 }
 
@@ -330,7 +332,7 @@ transitionSlide("第四部分：空间计量分析");
   sectionTitle(s, "结论与政策启示");
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 1.0, w: 4.5, h: 0.38, fill: { color: C.darkBlue }, rx: 6, ry: 6 });
-  s.addText("六项核心发现", { x: 0.3, y: 1.0, w: 4.5, h: 0.38, fontSize: 14, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle" });
+  s.addText("六项核心发现", { x: 0.3, y: 1.0, w: 4.5, h: 0.38, fontSize: 14, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle" });
   const findings = [
     "① 均等化方向正确：低自给率省份人均转移支付是高自给率的5.4倍",
     "② 地区差距依然严峻：人均GDP京/甘相差4倍，转移支付托底但无法根本改变",
@@ -340,11 +342,11 @@ transitionSlide("第四部分：空间计量分析");
     "⑥ 空间聚集显著：Moran's I=0.42***，高依赖省份呈现空间集群特征",
   ];
   findings.forEach((f, i) => {
-    s.addText(f, { x: 0.4, y: 1.55 + i * 0.52, w: 4.3, h: 0.4, fontSize: 9, fontFace: "Microsoft YaHei", color: C.dark, valign: "middle" });
+    s.addText(f, { x: 0.4, y: 1.55 + i * 0.52, w: 4.3, h: 0.4, fontSize: 9, fontFace: FONT_CN, color: C.dark, valign: "middle" });
   });
 
   s.addShape(pres.shapes.RECTANGLE, { x: 5.2, y: 1.0, w: 4.5, h: 0.38, fill: { color: C.navy }, rx: 6, ry: 6 });
-  s.addText("政策启示", { x: 5.2, y: 1.0, w: 4.5, h: 0.38, fontSize: 14, fontFace: "Microsoft YaHei", color: C.white, bold: true, align: "center", valign: "middle" });
+  s.addText("政策启示", { x: 5.2, y: 1.0, w: 4.5, h: 0.38, fontSize: 14, fontFace: FONT_CN_BOLD, color: C.white, bold: true, align: "center", valign: "middle" });
   const policies = [
     "① 优化转移支付结构：一般性向低自给率倾斜，专项引入绩效竞争",
     "② 推动地方税源建设：培育地方主体税种，增强自主造血能力",
@@ -354,7 +356,7 @@ transitionSlide("第四部分：空间计量分析");
     "⑥ 加强绩效评价：结果与资金分配挂钩，确保资金使用效率",
   ];
   policies.forEach((p, i) => {
-    s.addText(p, { x: 5.3, y: 1.55 + i * 0.6, w: 4.3, h: 0.45, fontSize: 9, fontFace: "Microsoft YaHei", color: C.dark, valign: "middle" });
+    s.addText(p, { x: 5.3, y: 1.55 + i * 0.6, w: 4.3, h: 0.45, fontSize: 9, fontFace: FONT_CN, color: C.dark, valign: "middle" });
   });
 }
 
@@ -380,13 +382,13 @@ transitionSlide("第四部分：空间计量分析");
     const iy = 2.25 + i * 0.7;
     s.addShape(pres.shapes.OVAL, { x: 0.5, y: iy + 0.1, w: 0.38, h: 0.38, fill: { color: C.blue } });
     s.addText(p.num, { x: 0.5, y: iy + 0.1, w: 0.38, h: 0.38, fontSize: 13, color: C.white, bold: true, align: "center", valign: "middle" });
-    s.addText(p.title, { x: 1.05, y: iy, w: 3.2, h: 0.3, fontSize: 13, fontFace: "Microsoft YaHei", color: C.darkBlue, bold: true, valign: "middle" });
-    s.addText(p.desc, { x: 1.05, y: iy + 0.3, w: 8.5, h: 0.35, fontSize: 10, fontFace: "Microsoft YaHei", color: C.gray, valign: "top" });
+    s.addText(p.title, { x: 1.05, y: iy, w: 3.2, h: 0.3, fontSize: 13, fontFace: FONT_CN_BOLD, color: C.darkBlue, bold: true, valign: "middle" });
+    s.addText(p.desc, { x: 1.05, y: iy + 0.3, w: 8.5, h: 0.35, fontSize: 10, fontFace: FONT_CN, color: C.gray, valign: "top" });
   });
 
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 5.1, w: 9.4, h: 0.35, fill: { color: C.offWhite }, rx: 6, ry: 6 });
   s.addText("核心启示：AI降低了技术门槛，但问题定义权、数据理解力、结论判断力——因为AI的存在反而更加重要", {
-    x: 0.5, y: 5.1, w: 9, h: 0.35, fontSize: 11, fontFace: "Microsoft YaHei", color: C.darkBlue, bold: true, align: "center", valign: "middle",
+    x: 0.5, y: 5.1, w: 9, h: 0.35, fontSize: 11, fontFace: FONT_CN_BOLD, color: C.darkBlue, bold: true, align: "center", valign: "middle",
   });
 }
 
