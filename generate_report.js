@@ -361,6 +361,84 @@ const doc = new Document({
       bullet("事后两两比较（Bonferroni校正）显示高/中（t = -11.30）、高/低（t = -7.08）、中/低（t = 6.17）三组之间的差异均在 p < 0.001 水平上显著，说明三类划分具有充分的统计判别力"),
 
       // ================================================================
+      // 四、实证分析结果（续）：面板回归与异质性分析
+      // ================================================================
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("4.7 面板固定效应回归分析")] }),
+      body("为控制省份异质性和时间效应，本研究构建双向固定效应面板回归模型："),
+      body("被解释变量：转移支付依赖度（%）"),
+      body("解释变量：ln(人均GDP)、ln(常住人口)"),
+      body("控制：省份固定效应 + 时间固定效应，聚类稳健标准误"),
+      embedImage("统计图_面板回归系数.png", 450, 280),
+      body("回归结果显示："),
+      new Table({
+        width: { size: 9506, type: WidthType.DXA },
+        columnWidths: [2000, 1500, 1500, 1500, 1500, 1506],
+        rows: [
+          new TableRow({ children: [headerCell("变量", 2000), headerCell("系数", 1500), headerCell("标准误", 1500), headerCell("t值", 1500), headerCell("p值", 1500), headerCell("显著性", 1506)] }),
+          ...panelReg.map(r => {
+            const sig = parseFloat(r["p值"]) < 0.001 ? "***" : parseFloat(r["p值"]) < 0.01 ? "**" : parseFloat(r["p值"]) < 0.05 ? "*" : "";
+            return new TableRow({ children: [
+              cell(r["变量"], 2000),
+              cell(parseFloat(r["系数"]).toFixed(4), 1500),
+              cell(parseFloat(r["标准误"]).toFixed(4), 1500),
+              cell(parseFloat(r["t值"] || 0).toFixed(2), 1500),
+              cell(parseFloat(r["p值"]).toFixed(6), 1500),
+              cell(sig, 1506),
+            ]});
+          }),
+        ]
+      }),
+      body("关键发现：在控制省份和时间固定效应后，ln(人均GDP)的系数显著为负，表明经济发展水平越高的省份，转移支付依赖度越低。ln(常住人口)的系数为正，表明人口规模较大的省份获得更多转移支付。"),
+
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("4.8 分位数回归：异质性分析")] }),
+      body("为检验转移支付依赖度的异质性，本研究在不同分位点上进行分位数回归："),
+      embedImage("统计图_分位数回归系数.png", 450, 280),
+      body("分位数回归结果揭示了影响因素在不同依赖度水平上的异质性："),
+      new Table({
+        width: { size: 9506, type: WidthType.DXA },
+        columnWidths: [1200, 2100, 2100, 2100, 2006],
+        rows: [
+          new TableRow({ children: [headerCell("分位数", 1200), headerCell("ln(人均GDP)系数", 2100), headerCell("ln(人口)系数", 2100), headerCell("截距", 2100), headerCell("备注", 2006)] }),
+          ...[0.25, 0.50, 0.75].map(q => {
+            const qRow = quantileReg.filter(r => parseFloat(r["分位数"]) === q);
+            const lnGdp = qRow.find(r => r["变量"].includes("人均GDP"));
+            const lnPop = qRow.find(r => r["变量"].includes("人口"));
+            const intercept = qRow.find(r => r["变量"] === "Intercept");
+            return new TableRow({ children: [
+              cell(q.toFixed(2), 1200),
+              cell(lnGdp ? parseFloat(lnGdp["系数"]).toFixed(4) : "-", 2100),
+              cell(lnPop ? parseFloat(lnPop["系数"]).toFixed(4) : "-", 2100),
+              cell(intercept ? parseFloat(intercept["系数"]).toFixed(2) : "-", 2100),
+              cell(q === 0.5 ? "中位数回归" : "", 2006),
+            ]});
+          }),
+        ]
+      }),
+      body("分析表明：在低依赖度分位点（25%），ln(人均GDP)的抑制效应更强；而在高依赖度分位点（75%），人口规模的正向效应更为显著。这提示转移支付政策对不同类型省份的影响机制存在差异。"),
+
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("4.9 回归诊断检验")] }),
+      body("为确保回归结果的可靠性，本研究进行了全面的诊断检验："),
+      new Table({
+        width: { size: 9506, type: WidthType.DXA },
+        columnWidths: [2506, 3500, 3500],
+        rows: [
+          new TableRow({ children: [headerCell("检验类型", 2506), headerCell("结果", 3500), headerCell("判断", 3500)] }),
+          ...regDiag.map(r => new TableRow({ children: [
+            cell(r["检验类别"], 2506),
+            cell(r["结果"], 3500),
+            cell(r["判断"], 3500),
+          ]})),
+        ]
+      }),
+      body("VIF = 1.01 表明不存在多重共线性问题；Breusch-Pagan检验显示存在异方差（已使用聚类稳健标准误进行校正）；Moran's I = 0.42（p < 0.001）证实转移支付依赖度存在显著的空间聚集效应。"),
+
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun("4.10 时序演变分析")] }),
+      body("2018-2024年间，31省转移支付依赖度的分布呈现明显的时序演变特征："),
+      embedImage("统计图_依赖度箱线图时序.png", 460, 280),
+      embedImage("统计图_三类省份时序对比.png", 460, 280),
+      body("箱线图显示，7年间转移支付依赖度的中位数从约37%上升至约47%，整体分布向右移动。三类省份的依赖度趋势分化明显：高自给率省份基本稳定在30%左右，而低自给率省份依赖度持续攀升，反映出地区间财政能力差距的扩大趋势。"),
+
+      // ================================================================
       // 五、AI辅助开发过程
       // ================================================================
       new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun("五、AI辅助开发过程")] }),
@@ -465,8 +543,13 @@ const doc = new Document({
           new TableRow({ children: [cell("summary_stats.csv", 3200), cell("核心指标描述性统计", 3306), cell("CSV", 3000)] }),
           new TableRow({ children: [cell("correlation_matrix.csv", 3200), cell("Pearson相关系数矩阵", 3306), cell("CSV", 3000)] }),
           new TableRow({ children: [cell("anova_results.csv", 3200), cell("ANOVA + Spearman检验结果", 3306), cell("CSV", 3000)] }),
+          new TableRow({ children: [cell("panel_regression.csv", 3200), cell("面板固定效应回归结果（双向FE）", 3306), cell("CSV", 3000)] }),
+          new TableRow({ children: [cell("quantile_regression.csv", 3200), cell("分位数回归结果（25%/50%/75%）", 3306), cell("CSV", 3000)] }),
+          new TableRow({ children: [cell("vif_diagnostic.csv", 3200), cell("VIF多重共线性检验", 3306), cell("CSV", 3000)] }),
+          new TableRow({ children: [cell("regression_diagnostic.csv", 3200), cell("回归诊断检验汇总", 3306), cell("CSV", 3000)] }),
+          new TableRow({ children: [cell("spatial_autocorrelation.csv", 3200), cell("Moran's I空间自相关检验", 3306), cell("CSV", 3000)] }),
           new TableRow({ children: [cell("地图_*.png（5张）", 3200), cell("省级choropleth地图（含时序变化量）", 3306), cell("PNG", 3000)] }),
-          new TableRow({ children: [cell("统计图_*.png（5张）", 3200), cell("排名图、散点图、趋势图、分组对比图、热力图", 3306), cell("PNG", 3000)] }),
+          new TableRow({ children: [cell("统计图_*.png（9张）", 3200), cell("排名图、散点图、趋势图、分组对比图、热力图、箱线图、时序对比、回归系数图", 3306), cell("PNG", 3000)] }),
           new TableRow({ children: [cell("仪表盘_综合.png", 3200), cell("双图并排综合分析仪表盘", 3306), cell("PNG", 3000)] }),
           new TableRow({ children: [cell("dashboard.html", 3200), cell("ECharts交互式仪表盘（双击即用）", 3306), cell("HTML", 3000)] }),
           new TableRow({ children: [cell("项目报告.docx", 3200), cell("完整项目报告（本文件）", 3306), cell("DOCX", 3000)] }),

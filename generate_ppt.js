@@ -30,6 +30,10 @@ const imgTrend = imgBase64("统计图_全国趋势.png");
 const imgRanking = imgBase64("统计图_财政自给率排名.png");
 const imgCategory = imgBase64("统计图_三类省份对比.png");
 const imgHeatmap = imgBase64("统计图_相关性热力图.png");
+const imgBoxplot = imgBase64("统计图_依赖度箱线图时序.png");
+const imgCatTrend = imgBase64("统计图_三类省份时序对比.png");
+const imgPanelReg = imgBase64("统计图_面板回归系数.png");
+const imgQReg = imgBase64("统计图_分位数回归系数.png");
 
 // ===== 工具函数 =====
 function sectionTitle(s, text) {
@@ -264,7 +268,53 @@ function aiBar(s, x, y, w, text) {
 }
 
 // ================================================================
-// Slide 9: 结论与政策启示
+// Slide 9: 结果⑥ — 面板回归与分位数回归
+// ================================================================
+{
+  const s = pres.addSlide();
+  s.background = { color: C.white };
+  sectionTitle(s, "结果⑥：面板固定效应回归与异质性分析");
+
+  if (imgPanelReg) s.addImage({ data: imgPanelReg, x: 0.1, y: 0.9, w: 4.7, h: 3.5 });
+  if (imgQReg) s.addImage({ data: imgQReg, x: 5.1, y: 0.9, w: 4.7, h: 3.5 });
+
+  s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 4.6, w: 4.5, h: 0.5, fill: { color: C.darkBlue } });
+  s.addText("左：面板FE回归系数森林图 | ln(人均GDP)显著负向，ln(人口)显著正向", {
+    x: 0.3, y: 4.6, w: 4.5, h: 0.5, fontSize: 11, fontFace: "Microsoft YaHei", color: C.white, align: "center", valign: "middle",
+  });
+  s.addShape(pres.shapes.RECTANGLE, { x: 5.0, y: 4.6, w: 4.7, h: 0.5, fill: { color: C.accent } });
+  s.addText("右：分位数回归系数变化 | 低依赖分位点GDP效应更强，高依赖分位点人口效应显著", {
+    x: 5.0, y: 4.6, w: 4.7, h: 0.5, fontSize: 11, fontFace: "Microsoft YaHei", color: C.white, align: "center", valign: "middle",
+  });
+
+  aiBar(s, 0.5, 5.3, 9, "linearmodels双向FE + statsmodels分位数回归 → 控制异质性 + 揭示分布异质性");
+}
+
+// ================================================================
+// Slide 10: 结果⑦ — 时序演变与诊断检验
+// ================================================================
+{
+  const s = pres.addSlide();
+  s.background = { color: C.white };
+  sectionTitle(s, "结果⑦：时序演变与回归诊断检验");
+
+  if (imgBoxplot) s.addImage({ data: imgBoxplot, x: 0.1, y: 0.9, w: 4.7, h: 3.5 });
+  if (imgCatTrend) s.addImage({ data: imgCatTrend, x: 5.1, y: 0.9, w: 4.7, h: 3.5 });
+
+  s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 4.6, w: 4.5, h: 0.5, fill: { color: C.blue } });
+  s.addText("左：箱线图时序 | 依赖度中位数从37%升至47%，整体分布右移", {
+    x: 0.3, y: 4.6, w: 4.5, h: 0.5, fontSize: 11, fontFace: "Microsoft YaHei", color: C.white, align: "center", valign: "middle",
+  });
+  s.addShape(pres.shapes.RECTANGLE, { x: 5.0, y: 4.6, w: 4.7, h: 0.5, fill: { color: C.green } });
+  s.addText("右：三类省份趋势 | 高自给率稳定30%，低自给率持续攀升", {
+    x: 5.0, y: 4.6, w: 4.7, h: 0.5, fontSize: 11, fontFace: "Microsoft YaHei", color: C.white, align: "center", valign: "middle",
+  });
+
+  aiBar(s, 0.5, 5.3, 9, "VIF=1.01(无共线性) | BP检验(异方差→已用稳健SE) | Moran I=0.42***(空间聚集)");
+}
+
+// ================================================================
+// Slide 11: 结论与政策启示
 // ================================================================
 {
   const s = pres.addSlide();
@@ -279,9 +329,11 @@ function aiBar(s, x, y, w, text) {
     "② 地区差距依然严峻：人均GDP京/甘相差4倍，转移支付托底但无法根本改变经济格局",
     "③ 整体依赖加深：全国平均依赖度从37%升至47%，地方税源建设仍是长期课题",
     "④ 三类划分有效：ANOVA F=62.10，组间差异极显著，分类施策具有统计依据",
+    "⑤ 面板回归证实：ln(人均GDP)显著负向，经济越发达依赖度越低",
+    "⑥ 空间聚集显著：Moran's I=0.42***，高依赖省份呈现空间集群特征",
   ];
   findings.forEach((f, i) => {
-    s.addText(f, { x: 0.4, y: 1.55 + i * 0.72, w: 4.3, h: 0.6, fontSize: 10, fontFace: "Microsoft YaHei", color: C.dark, valign: "middle" });
+    s.addText(f, { x: 0.4, y: 1.55 + i * 0.6, w: 4.3, h: 0.5, fontSize: 9.5, fontFace: "Microsoft YaHei", color: C.dark, valign: "middle" });
   });
 
   // 右侧：政策启示
@@ -291,20 +343,21 @@ function aiBar(s, x, y, w, text) {
     "① 分类优化转移支付：一般性向低自给率倾斜，专项引入绩效竞争机制",
     "② 推动地方税源建设：培育地方主体税种，增强自主造血能力",
     "③ 建立动态监测体系：面板数据年度跟踪，差异化帮扶避免一刀切",
+    "④ 考虑空间溢出效应：高依赖省份集群区域需协同政策支持",
   ];
   policies.forEach((p, i) => {
-    s.addText(p, { x: 5.3, y: 1.55 + i * 0.8, w: 4.3, h: 0.6, fontSize: 10, fontFace: "Microsoft YaHei", color: C.dark, valign: "middle" });
+    s.addText(p, { x: 5.3, y: 1.55 + i * 0.72, w: 4.3, h: 0.55, fontSize: 9.5, fontFace: "Microsoft YaHei", color: C.dark, valign: "middle" });
   });
 
   // 底部：研究局限
   s.addShape(pres.shapes.RECTANGLE, { x: 0.3, y: 4.55, w: 9.4, h: 0.38, fill: { color: C.offWhite } });
-  s.addText("局限与展望：转移支付未区分一般性/专项 → 未引入教育/医疗等社会指标 → 未来引入固定效应面板回归模型", {
+  s.addText("局限与展望：转移支付未区分一般性/专项 → 可引入空间滞后模型(SLM)量化溢出效应 → 对接教育/医疗等社会产出指标", {
     x: 0.5, y: 4.55, w: 9, h: 0.38, fontSize: 10, fontFace: "Microsoft YaHei", color: C.gray, valign: "middle",
   });
 }
 
 // ================================================================
-// Slide 10: AI协作总结
+// Slide 12: AI协作总结
 // ================================================================
 {
   const s = pres.addSlide();
