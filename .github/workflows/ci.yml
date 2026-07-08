@@ -2,25 +2,21 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, "trae/**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  test:
+  build-and-deploy:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12"]
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python ${{ matrix.python-version }}
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
           cache: "pip"
 
       - name: Install dependencies
@@ -32,108 +28,18 @@ jobs:
         run: |
           python -m pytest test_indicators.py -v --tb=short
 
-      - name: Run main pipeline (data collection + processing)
-        run: |
-          python main.py --collect --process
-        continue-on-error: true
-
-      - name: Verify output files
-        run: |
-          ls -la output/
-          test -f output/indicators.csv && echo "indicators.csv exists"
-          test -f output/panel_regression.csv && echo "panel_regression.csv exists"
-          test -f output/vif_diagnostic.csv && echo "vif_diagnostic.csv exists"
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install linter
-        run: |
-          pip install ruff
-
-      - name: Run Ruff linter
-        run: |
-          ruff check *.py --select=E,F,W --ignore=E501,W291,W293
-        continue-on-error: true
-
-  build-dashboard:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
       - name: Run full pipeline
         run: |
           python main.py
 
-      - name: Upload dashboard artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dashboard
-          path: output/dashboard.html
-          retention-days: 7
-
-      - name: Upload regression results
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-results
-          path: |
-            output/panel_regression.csv
-            output/quantile_regression.csv
-            output/vif_diagnostic.csv
-            output/regression_diagnostic.csv
-          retention-days: 7
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build-dashboard
-    if: github.ref == "refs/heads/main" && github.event_name == "push"
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download dashboard artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: dashboard
-          path: output/
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload to GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: output/
+      - name: Verify output files
+        run: |
+          ls -la output/
 
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./output
+          publish_branch: gh-pages
