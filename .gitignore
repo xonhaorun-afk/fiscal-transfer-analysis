@@ -18,7 +18,5 @@ node_modules/
 Thumbs.db
 
 # 生成文件（python main.py 即可重现）
+# 注意：保留 dashboard.html、报告和PPT用于GitHub Pages部署
 output/*.csv
-output/*.png
-output/*.docx
-output/*.pptx
