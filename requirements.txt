@@ -9,3 +9,5 @@ pytest>=7.0
 statsmodels>=0.14
 linearmodels>=4.0
 akshare>=1.10
+libpysal>=4.0
+esda>=2.0

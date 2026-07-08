@@ -5,16 +5,22 @@
   - 描述性：Pearson相关矩阵、Spearman秩相关、单因素ANOVA + Bonferroni
   - 推断性：面板固定效应回归（双向固定效应）
   - 异质性：分位数回归（Quantile Regression）
+  - 诊断性：VIF多重共线性、异方差检验、Hausman检验、序列相关检验
 """
 import os
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, List, Any
 import pandas as pd
 import numpy as np
 from scipy import stats
+from scipy.stats import norm
 from config import (
     BASE_DIR, OUTPUT_DIR, PROVINCES,
-    YEAR_START, YEAR_END, INDICATOR_COLS,
+    YEAR_START, YEAR_END, INDICATOR_COLS, NUMERIC_INDICATORS,
+    CLASSIFICATION_THRESHOLDS, CLASSIFICATION_LABELS,
+    PANEL_REG_CONTROLS, PANEL_REG_TARGET, QUANTILE_POINTS,
+    VIF_THRESHOLD, MIN_SAMPLES_PANEL, MIN_SAMPLES_QUANTILE,
+    DEPENDENCY_RATE_MAX, SELF_RATE_MAX,
 )
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -107,28 +113,31 @@ def calculate_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def classify_provinces(df: pd.DataFrame) -> pd.DataFrame:
-    """按最新年份财政自给率将省份分为三类"""
+    """按最新年份财政自给率将省份分为三类（使用配置阈值）"""
     logger.info("\n省份分类...")
     latest_year = df["年份"].max()
     recent = df[df["年份"] == latest_year]
 
-    high = recent[recent["财政自给率"] >= 60]["省份"].tolist()
-    mid = recent[(recent["财政自给率"] >= 35) & (recent["财政自给率"] < 60)]["省份"].tolist()
-    low = recent[recent["财政自给率"] < 35]["省份"].tolist()
+    high_threshold = CLASSIFICATION_THRESHOLDS["high"]
+    low_threshold = CLASSIFICATION_THRESHOLDS["low"]
+
+    high = recent[recent["财政自给率"] >= high_threshold]["省份"].tolist()
+    mid = recent[(recent["财政自给率"] >= low_threshold) & (recent["财政自给率"] < high_threshold)]["省份"].tolist()
+    low = recent[recent["财政自给率"] < low_threshold]["省份"].tolist()
 
     mapping = {}
     for p in high:
-        mapping[p] = "高自给率（≥60%）"
+        mapping[p] = CLASSIFICATION_LABELS["high"]
     for p in mid:
-        mapping[p] = "中自给率（35%-60%）"
+        mapping[p] = CLASSIFICATION_LABELS["mid"]
     for p in low:
-        mapping[p] = "低自给率（<35%）"
+        mapping[p] = CLASSIFICATION_LABELS["low"]
 
     df["财政自给率分类"] = df["省份"].map(mapping)
 
-    logger.info(f"  高自给率（≥60%）: {len(high)} 个省份 — {', '.join(high)}")
-    logger.info(f"  中自给率（35%-60%）: {len(mid)} 个省份")
-    logger.info(f"  低自给率（<35%）: {len(low)} 个省份 — {', '.join(low)}")
+    logger.info(f"  高自给率（≥{high_threshold}%）: {len(high)} 个省份 — {', '.join(high)}")
+    logger.info(f"  中自给率（{low_threshold}%-{high_threshold}%）: {len(mid)} 个省份")
+    logger.info(f"  低自给率（<{low_threshold}%）: {len(low)} 个省份 — {', '.join(low)}")
     return df
 
 
@@ -387,6 +396,476 @@ def _run_quantile_regression(df: pd.DataFrame) -> Optional[Dict]:
     return None
 
 
+# ============================================================
+# 统计诊断检验模块
+# ============================================================
+def _calculate_vif(X: pd.DataFrame) -> pd.DataFrame:
+    """
+    计算方差膨胀因子（VIF）检验多重共线性
+    VIF > 10 表示存在严重多重共线性
+    """
+    try:
+        import statsmodels.api as sm
+    except ImportError:
+        return pd.DataFrame()
+
+    vif_data = []
+    variables = X.columns.tolist()
+
+    # 只计算非常数项的VIF
+    for var in variables:
+        if var == "const":
+            continue
+        
+        # 以该变量为因变量，其他非常数变量为自变量进行回归
+        other_vars = [v for v in variables if v != var and v != "const"]
+        if len(other_vars) == 0:
+            # 只有一个解释变量，VIF=1
+            vif_data.append({
+                "变量": var,
+                "VIF": 1.0,
+                "R²": 0.0,
+                "共线性": "无",
+            })
+            continue
+        
+        Y_vif = X[var]
+        X_vif = X[other_vars]
+        
+        # 如果X_vif只有一个变量，也需要特殊处理
+        if len(other_vars) == 1:
+            # 计算简单相关系数
+            r = np.corrcoef(X[var], X[other_vars[0]])[0, 1]
+            r_squared = r ** 2
+            vif = 1 / (1 - r_squared) if r_squared < 1 else np.inf
+        else:
+            X_vif = sm.add_constant(X_vif, has_constant="add")
+            try:
+                model = sm.OLS(Y_vif, X_vif).fit()
+                r_squared = model.rsquared
+                vif = 1 / (1 - r_squared) if r_squared < 1 else np.inf
+            except Exception:
+                vif = np.inf
+                r_squared = 1.0
+
+        vif_data.append({
+            "变量": var,
+            "VIF": round(vif, 4),
+            "R²": round(r_squared, 4),
+            "共线性": "严重" if vif > VIF_THRESHOLD else "无/轻微",
+        })
+
+    return pd.DataFrame(vif_data)
+
+
+def _run_heteroskedasticity_test(residuals: np.ndarray, X: pd.DataFrame) -> Dict:
+    """
+    异方差检验（White 检验和 Breusch-Pagan 检验）
+    """
+    try:
+        import statsmodels.stats.diagnostic as diag
+        import statsmodels.api as sm
+    except ImportError:
+        return {}
+
+    results = {}
+
+    # Breusch-Pagan 检验
+    try:
+        # 使用残差平方对原变量回归
+        resid_sq = residuals ** 2
+        X_bp = sm.add_constant(X)
+        model_bp = sm.OLS(resid_sq, X_bp).fit()
+        n = len(residuals)
+        lm_stat = n * model_bp.rsquared
+        lm_pval = 1 - stats.chi2.cdf(lm_stat, df=X_bp.shape[1] - 1)
+
+        results["Breusch_Pagan"] = {
+            "LM统计量": round(lm_stat, 4),
+            "p值": round(lm_pval, 6),
+            "结论": "存在异方差" if lm_pval < 0.05 else "无异方差",
+            "建议": "使用稳健标准误" if lm_pval < 0.05 else "OLS标准误有效",
+        }
+    except Exception as e:
+        results["Breusch_Pagan"] = {"错误": str(e)}
+
+    # White 检验（更一般化）
+    try:
+        white_stat, white_pval, _, _ = diag.het_white(residuals, X_bp)
+        results["White"] = {
+            "统计量": round(white_stat, 4),
+            "p值": round(white_pval, 6),
+            "结论": "存在异方差" if white_pval < 0.05 else "无异方差",
+        }
+    except Exception:
+        pass
+
+    return results
+
+
+def _run_serial_correlation_test(panel_data: pd.DataFrame, residuals: pd.Series) -> Dict:
+    """
+    面板数据序列相关检验（Wooldridge 检验）
+    检验是否存在时间序列自相关
+    """
+    try:
+        from linearmodels.panel import compare
+    except ImportError:
+        return {"Wooldridge": {"说明": "linearmodels 未安装，跳过"}}
+
+    results = {}
+
+    # 简化版检验：计算残差的一阶自相关系数
+    try:
+        provinces = panel_data.index.get_level_values(0).unique()
+        autocorr_coeffs = []
+        for prov in provinces:
+            prov_resid = residuals[prov].values if prov in residuals.index.get_level_values(0) else []
+            if len(prov_resid) > 2:
+                # 计算一阶自相关
+                autocorr = np.corrcoef(prov_resid[:-1], prov_resid[1:])[0, 1]
+                autocorr_coeffs.append(autocorr)
+
+        if autocorr_coeffs:
+            avg_autocorr = np.mean(autocorr_coeffs)
+            results["一阶自相关"] = {
+                "平均系数": round(avg_autocorr, 4),
+                "范围": f"[{round(min(autocorr_coeffs), 4)}, {round(max(autocorr_coeffs), 4)}]",
+                "结论": "存在正自相关" if avg_autocorr > 0.3 else "存在负自相关" if avg_autocorr < -0.3 else "无明显自相关",
+            }
+    except Exception as e:
+        results["一阶自相关"] = {"错误": str(e)}
+
+    return results
+
+
+def _run_spatial_autocorrelation(df: pd.DataFrame) -> Dict:
+    """
+    空间自相关检验（Moran's I）
+    检验转移支付依赖度是否存在空间聚集效应
+    """
+    logger.info("\n" + "=" * 60)
+    logger.info("空间计量分析：Moran's I 空间自相关")
+    logger.info("=" * 60)
+
+    results = {}
+
+    try:
+        import libpysal
+        from esda.moran import Moran
+    except ImportError:
+        logger.warning("  libpysal/esda 未安装，跳过空间自相关检验")
+        return {"Moran_I": {"说明": "libpysal/esda 未安装"}}
+
+    # 获取最新年份数据
+    latest_year = df["年份"].max()
+    recent = df[df["年份"] == latest_year].copy()
+
+    # 尝试加载 GeoJSON 构建空间权重矩阵
+    geojson_path = os.path.join(OUTPUT_DIR, "china_provinces.geojson")
+    if not os.path.exists(geojson_path):
+        logger.warning("  GeoJSON 文件不存在，使用简化空间权重矩阵")
+        # 使用省份地理位置的简化邻接关系（基于经纬度）
+        try:
+            province_coords = _get_province_centroid_coords()
+            coords = [province_coords.get(p, [0, 0]) for p in recent["省份"].values]
+            coords = np.array(coords)
+            
+            # 计算距离矩阵
+            n = len(coords)
+            dist_matrix = np.zeros((n, n))
+            for i in range(n):
+                for j in range(n):
+                    dist_matrix[i, j] = np.sqrt(
+                        (coords[i, 0] - coords[j, 0]) ** 2 + 
+                        (coords[i, 1] - coords[j, 1]) ** 2
+                    )
+            
+            # 构建 K近邻权重矩阵（K=4）
+            K = 4
+            w_matrix = np.zeros((n, n))
+            for i in range(n):
+                nearest = np.argsort(dist_matrix[i])[1:K+1]  # 排除自身
+                w_matrix[i, nearest] = 1
+            
+            # 行标准化
+            w_matrix = w_matrix / w_matrix.sum(axis=1, keepdims=True)
+            
+            # 计算 Moran's I
+            y = recent["转移支付依赖度"].values
+            y_mean = y.mean()
+            
+            # Moran's I 公式
+            s0 = w_matrix.sum()
+            s1 = 0.5 * ((w_matrix + w_matrix.T) ** 2).sum()
+            s2 = ((w_matrix.sum(axis=1) + w_matrix.sum(axis=0)) ** 2).sum()
+            
+            numerator = n * np.sum(w_matrix * np.outer(y - y_mean, y - y_mean))
+            denominator = s0 * np.sum((y - y_mean) ** 2)
+            
+            moran_i = numerator / denominator if denominator > 0 else 0
+            
+            # 计算 Z 统计量和 p 值
+            var_i = (n ** 2 * s1 - n * s2 + 3 * s0 ** 2) / (s0 ** 2 * (n ** 2 - 1)) - (1 / (n - 1)) ** 2
+            z_stat = (moran_i - (-1 / (n - 1))) / np.sqrt(var_i)
+            p_value = 2 * (1 - norm.cdf(abs(z_stat)))
+            
+            results["Moran_I"] = {
+                "Moran_I": round(moran_i, 4),
+                "Z统计量": round(z_stat, 4),
+                "p值": round(p_value, 6),
+                "结论": "存在空间聚集" if p_value < 0.05 and moran_i > 0 else "空间随机分布",
+                "权重类型": "K近邻(简化)",
+            }
+            
+            logger.info(f"  Moran's I = {moran_i:.4f}")
+            logger.info(f"  Z 统计量 = {z_stat:.4f}, p = {p_value:.6f}")
+            if p_value < 0.05:
+                if moran_i > 0:
+                    logger.info("  结论：转移支付依赖度存在显著的空间聚集效应（正相关）")
+                else:
+                    logger.info("  结论：转移支付依赖度存在空间离散效应（负相关）")
+            else:
+                logger.info("  结论：转移支付依赖度空间分布随机，无显著聚集")
+            
+        except Exception as e:
+            logger.warning(f"  简化空间权重矩阵计算失败: {e}")
+            results["Moran_I"] = {"错误": str(e)}
+            return results
+    else:
+        try:
+            import geopandas as gpd
+            gdf = gpd.read_file(geojson_path)
+            
+            # 只筛选31个省份（排除港澳台等）
+            province_set = set(recent["省份"].unique())
+            gdf = gdf[gdf["name"].isin(province_set)]
+            
+            # 合并数据
+            gdf = gdf.merge(recent[["省份", "转移支付依赖度"]], 
+                          left_on="name", right_on="省份", how="left")
+            gdf = gdf.dropna(subset=["转移支付依赖度"])
+            
+            # 构建空间权重矩阵（K近邻，避免岛屿问题）
+            # 使用 K近邻而不是 Queen 邻接，因为海南等岛屿无邻接
+            w = libpysal.weights.KNN.from_dataframe(gdf, k=4)
+            w.transform = "r"  # 行标准化
+            
+            # 计算 Moran's I
+            y = gdf["转移支付依赖度"].values
+            moran = Moran(y, w)
+            
+            # 获取值并转换为 float
+            moran_i = float(moran.I) if hasattr(moran.I, '__float__') else moran.I
+            z_val = float(moran.z[0]) if isinstance(moran.z, np.ndarray) else float(moran.z)
+            p_val = float(moran.p_norm[0]) if isinstance(moran.p_norm, np.ndarray) else float(moran.p_norm)
+            
+            results["Moran_I"] = {
+                "Moran_I": round(moran_i, 4),
+                "Z统计量": round(z_val, 4),
+                "p值": round(p_val, 6),
+                "结论": "存在空间聚集" if p_val < 0.05 and moran_i > 0 else "空间随机分布",
+                "权重类型": "KNN(k=4)",
+            }
+            
+            logger.info(f"  Moran's I = {moran_i:.4f}")
+            logger.info(f"  Z 统计量 = {z_val:.4f}, p = {p_val:.6f}")
+            if p_val < 0.05:
+                if moran_i > 0:
+                    logger.info("  结论：转移支付依赖度存在显著的空间聚集效应")
+                else:
+                    logger.info("  结论：转移支付依赖度存在空间离散效应")
+            else:
+                logger.info("  结论：空间分布随机")
+            
+        except Exception as e:
+            logger.warning(f"  GeoJSON 方式计算失败: {e}")
+            results["Moran_I"] = {"错误": str(e)}
+            return results
+
+    # 保存空间自相关结果
+    if "Moran_I" in results and "错误" not in results["Moran_I"]:
+        spatial_path = os.path.join(OUTPUT_DIR, "spatial_autocorrelation.csv")
+        pd.DataFrame([results["Moran_I"]]).to_csv(spatial_path, index=False, encoding="utf-8-sig")
+        logger.info(f"\n  空间自相关结果已保存: {spatial_path}")
+
+    logger.info("=" * 60)
+    return results
+
+
+def _get_province_centroid_coords() -> Dict[str, List[float]]:
+    """获取省份中心点经纬度（简化版，用于构建空间权重）"""
+    # 中国各省份大致中心坐标
+    coords = {
+        "北京市": [116.4, 39.9], "天津市": [117.2, 39.1],
+        "河北省": [114.5, 38.0], "山西省": [112.5, 37.9],
+        "内蒙古自治区": [111.7, 41.8], "辽宁省": [123.4, 41.8],
+        "吉林省": [125.3, 43.9], "黑龙江省": [126.6, 45.8],
+        "上海市": [121.5, 31.2], "江苏省": [120.3, 32.0],
+        "浙江省": [120.2, 30.3], "安徽省": [117.3, 31.9],
+        "福建省": [119.3, 26.1], "江西省": [115.9, 28.7],
+        "山东省": [117.0, 36.7], "河南省": [113.7, 34.8],
+        "湖北省": [114.3, 30.6], "湖南省": [113.0, 28.2],
+        "广东省": [113.3, 23.1], "广西壮族自治区": [108.3, 23.5],
+        "海南省": [110.4, 19.0], "重庆市": [106.5, 29.6],
+        "四川省": [104.1, 30.7], "贵州省": [106.7, 26.6],
+        "云南省": [102.7, 25.0], "西藏自治区": [91.1, 29.7],
+        "陕西省": [109.0, 34.3], "甘肃省": [103.8, 36.1],
+        "青海省": [96.0, 35.6], "宁夏回族自治区": [106.3, 37.5],
+        "新疆维吾尔自治区": [87.6, 43.8],
+    }
+    return coords
+
+
+def _normalize_province_name(name: str) -> str:
+    """规范化省份名称"""
+    name = str(name).strip()
+    # 处理常见的变体
+    replacements = {
+        "北京": "北京市", "天津": "天津市",
+        "河北": "河北省", "山西": "山西省",
+        "内蒙古": "内蒙古自治区",
+        "辽宁": "辽宁省", "吉林": "吉林省",
+        "黑龙江": "黑龙江省",
+        "上海": "上海市", "江苏": "江苏省",
+        "浙江": "浙江省", "安徽": "安徽省",
+        "福建": "福建省", "江西": "江西省",
+        "山东": "山东省", "河南": "河南省",
+        "湖北": "湖北省", "湖南": "湖南省",
+        "广东": "广东省", "广西": "广西壮族自治区",
+        "海南": "海南省", "重庆": "重庆市",
+        "四川": "四川省", "贵州": "贵州省",
+        "云南": "云南省", "西藏": "西藏自治区",
+        "陕西": "陕西省", "甘肃": "甘肃省",
+        "青海": "青海省", "宁夏": "宁夏回族自治区",
+        "新疆": "新疆维吾尔自治区",
+    }
+    for short, full in replacements.items():
+        if short in name or name == short:
+            return full
+    return name
+
+
+def _run_model_diagnostics(df: pd.DataFrame, panel_results: Optional[Dict] = None) -> Dict:
+    """
+    执行完整的回归模型诊断检验
+    包括：VIF多重共线性、异方差检验、序列相关检验、空间自相关
+    """
+    logger.info("\n" + "=" * 60)
+    logger.info("回归模型诊断检验")
+    logger.info("=" * 60)
+
+    diagnostics = {}
+
+    # 准备回归数据
+    df_reg = df.dropna(subset=["转移支付依赖度", "人均GDP_元", "常住人口_万人"]).copy()
+    if len(df_reg) < MIN_SAMPLES_PANEL:
+        logger.warning("  样本量不足，跳过诊断检验")
+        return diagnostics
+
+    df_reg["ln人均GDP"] = np.log(df_reg["人均GDP_元"])
+    df_reg["ln人口"] = np.log(df_reg["常住人口_万人"])
+
+    X = df_reg[["ln人均GDP", "ln人口"]]
+    Y = df_reg["转移支付依赖度"]
+
+    # 1. VIF 多重共线性检验
+    logger.info("\n[1] VIF 多重共线性检验:")
+    import statsmodels.api as sm
+    X_with_const = sm.add_constant(X)
+    vif_df = _calculate_vif(X_with_const)
+
+    if not vif_df.empty:
+        diagnostics["VIF"] = vif_df.to_dict("records")
+        for row in vif_df.itertuples():
+            logger.info(f"    {row.变量}: VIF = {row.VIF:.4f} ({row.共线性})")
+
+        max_vif = vif_df["VIF"].max()
+        if max_vif > VIF_THRESHOLD:
+            logger.warning(f"    警告：最大 VIF = {max_vif:.4f} > {VIF_THRESHOLD}，存在多重共线性风险")
+        else:
+            logger.info(f"    结论：所有 VIF < {VIF_THRESHOLD}，无严重多重共线性")
+
+        vif_path = os.path.join(OUTPUT_DIR, "vif_diagnostic.csv")
+        vif_df.to_csv(vif_path, index=False, encoding="utf-8-sig")
+        logger.info(f"    VIF 结果已保存: {vif_path}")
+
+    # 2. OLS 回归（用于诊断）
+    logger.info("\n[2] OLS 回归诊断:")
+    ols_model = sm.OLS(Y, X_with_const).fit()
+    logger.info(f"    R² = {ols_model.rsquared:.4f}")
+    logger.info(f"    F 统计量 = {ols_model.fvalue:.4f}, p = {ols_model.f_pvalue:.6f}")
+
+    diagnostics["OLS"] = {
+        "rsquared": round(ols_model.rsquared, 4),
+        "f_stat": round(ols_model.fvalue, 4),
+        "f_pval": round(ols_model.f_pvalue, 6),
+        "nobs": int(ols_model.nobs),
+    }
+
+    # 3. 异方差检验
+    logger.info("\n[3] 异方差检验:")
+    hetero_results = _run_heteroskedasticity_test(ols_model.resid.values, X_with_const)
+    diagnostics["heteroskedasticity"] = hetero_results
+
+    for test_name, test_result in hetero_results.items():
+        if "错误" in test_result:
+            logger.info(f"    {test_name}: {test_result['错误']}")
+        else:
+            pval = test_result.get("p值", test_result.get("LM统计量的p值", "N/A"))
+            conclusion = test_result.get("结论", "N/A")
+            logger.info(f"    {test_name}: p = {pval} → {conclusion}")
+
+    # 4. 序列相关检验（面板数据）
+    logger.info("\n[4] 面板数据序列相关检验:")
+    df_panel = df_reg.set_index(["省份", "年份"])
+    resid_panel = pd.Series(ols_model.resid.values, index=df_panel.index)
+    serial_results = _run_serial_correlation_test(df_panel, resid_panel)
+    diagnostics["serial_correlation"] = serial_results
+
+    for test_name, test_result in serial_results.items():
+        if "说明" in test_result or "错误" in test_result:
+            logger.info(f"    {test_name}: {test_result.get('说明', test_result.get('错误', 'N/A'))}")
+        else:
+            logger.info(f"    {test_name}: {test_result}")
+
+    # 保存诊断结果汇总
+    diag_summary = []
+    max_vif = vif_df["VIF"].max() if not vif_df.empty else 0.0
+    diag_summary.append({"检验类别": "VIF多重共线性", "结果": f"最大VIF={max_vif:.4f}",
+                         "判断": "无严重共线性" if max_vif <= VIF_THRESHOLD else "存在共线性"})
+    if "Breusch_Pagan" in hetero_results:
+        bp = hetero_results["Breusch_Pagan"]
+        diag_summary.append({"检验类别": "Breusch-Pagan异方差", "结果": f"p={bp.get('p值', 'N/A')}", 
+                             "判断": bp.get("结论", "N/A")})
+    if "一阶自相关" in serial_results:
+        ac = serial_results["一阶自相关"]
+        diag_summary.append({"检验类别": "一阶自相关", "结果": f"平均系数={ac.get('平均系数', 'N/A')}", 
+                             "判断": ac.get("结论", "N/A")})
+
+    diag_path = os.path.join(OUTPUT_DIR, "regression_diagnostic.csv")
+    pd.DataFrame(diag_summary).to_csv(diag_path, index=False, encoding="utf-8-sig")
+    logger.info(f"\n  诊断检验汇总已保存: {diag_path}")
+
+    # 5. 空间自相关检验
+    spatial_results = _run_spatial_autocorrelation(df)
+    diagnostics["spatial_autocorrelation"] = spatial_results
+
+    # 添加空间自相关到诊断汇总
+    if "Moran_I" in spatial_results and "错误" not in spatial_results["Moran_I"]:
+        moran = spatial_results["Moran_I"]
+        diag_summary.append({
+            "检验类别": "Moran's I空间自相关",
+            "结果": f"I={moran.get('Moran_I', 'N/A')}, p={moran.get('p值', 'N/A')}",
+            "判断": moran.get("结论", "N/A"),
+        })
+        # 更新保存
+        pd.DataFrame(diag_summary).to_csv(diag_path, index=False, encoding="utf-8-sig")
+
+    logger.info("=" * 60)
+    return diagnostics
+
+
 def statistical_analysis(df: pd.DataFrame) -> Dict:
     """执行全部统计检验与分析"""
     results = {}
@@ -394,6 +873,7 @@ def statistical_analysis(df: pd.DataFrame) -> Dict:
     results["baseline"] = _run_baseline_tests(df)
     results["panel_regression"] = _run_panel_regression(df)
     results["quantile_regression"] = _run_quantile_regression(df)
+    results["diagnostics"] = _run_model_diagnostics(df, results.get("panel_regression"))
 
     logger.info("=" * 60)
     return results
